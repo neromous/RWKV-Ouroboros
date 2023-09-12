@@ -25,9 +25,6 @@ import json
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 
 def init_args(args):
-    if args.load_model == "":
-        args.load_model = get_model(args.proj_dir)
-    args.epoch_begin = next_model(args.proj_dir)
     if not os.path.exists(args.proj_dir):
         os.makedirs(args.proj_dir)
     return args
@@ -81,7 +78,7 @@ model.load_state_dict(load_dict)
 model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      model_parameters=model.configure_optimizers(),
                                                      config="ds_config.config",
-                                                     device_id=0)
+                                                     )
 
 
 
