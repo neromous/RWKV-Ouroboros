@@ -26,7 +26,7 @@ In light of the development of large language models, the relationship between h
 
 项目启动代码
 ```bash
-deepspeed --num_nodes=1 --num_gpus=2 app.py --deepspeed --deepspeed_config ds_config.config
+deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_config.config
 ```
 
 在3000端口建立服务
