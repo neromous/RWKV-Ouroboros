@@ -32,5 +32,7 @@ deepspeed --num_nodes=1 --num_gpus=2 app.py --deepspeed --deepspeed_config ds_co
 在3000端口建立服务
 
 资源需求
+3B 显存 16gb， 内存128
+7b 显存 20gb， 内存150g以上
 
 
