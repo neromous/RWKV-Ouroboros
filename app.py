@@ -97,7 +97,7 @@ def my_func(tmp):
 
 
 @route('/textbook',method='POST')
-def train_batch():
+def textbook():
     global model_engine
     resp = request.json
     batch_ids = resp["batch_ids"]
