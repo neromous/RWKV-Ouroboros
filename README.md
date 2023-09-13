@@ -45,3 +45,7 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 - 增加llama系模型支持。
 
 
+## 联系方式
+
+qq群： **873610818**
+
