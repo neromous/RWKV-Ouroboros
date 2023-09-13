@@ -36,7 +36,7 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 7b 显存 20gb， 内存150g以上
 
 
-路线图
+## 路线图
 - 推理结果存档、修正、训练、存储。
 - 提供训练与推理实时同步机制（cpu base）
 - 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）
