@@ -14,6 +14,8 @@ In light of the development of large language models, the relationship between h
 
 
 ## 项目组成
+[color=red] **infctx training is comming soon** [/color]
+
 
 - app.py # 用于模型启动，建立一个基于bottle的服务，通过api暴露训练和数据加载接口
 - scripts # 交互脚本 代码很简单， 
