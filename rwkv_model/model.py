@@ -12,13 +12,14 @@ import torch
 # torch._C._jit_set_profiling_mode(True)
 import torch.nn as nn
 from torch.nn import functional as F
-
+from tqdm import tqdm
 import deepspeed
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 import deepspeed.runtime.lr_schedules
 import wandb
 
 from torch.utils.cpp_extension import load
+from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 
 # Script dir for various files
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -527,7 +528,7 @@ class RWKV(nn.Module):
              is_python_module=False)
 
         self.blocks = nn.ModuleList([
-            Block(i, n_layer, n_embd, dim_att, dim_ffn) for i in range(n_layer)
+            Block(i, n_layer, n_embd, dim_att, dim_ffn) for i in tqdm(range(n_layer))
         ])
 
         self.ln_out = nn.LayerNorm(n_embd)
@@ -544,7 +545,7 @@ class RWKV(nn.Module):
 
         print(f"[RWKV.model]: Finished initial model load")
 
-    def configure_optimizers(self):
+    def get_optimizers(self):
 
         #print(f"[RWKV.model][rank={self.trainer.local_rank}] Configuring optimizer ...")
 
@@ -630,8 +631,38 @@ class RWKV(nn.Module):
                     "weight_decay": 0.0
                 },
             ]
-        return optim_groups
 
+        if self.deepspeed_offload:
+            optimizer = DeepSpeedCPUAdam(optim_groups,
+                                         lr=lr_init,
+                                         betas=(self.beta1, self.beta2),
+                                         eps=self.adam_eps,
+                                         bias_correction=True,
+                                         adamw_mode=False,
+                                         weight_decay=self.weight_decay,
+                                         amsgrad=False)
+        else:
+            optimizer = FusedAdam(optim_groups,
+                                  lr=lr_init,
+                                  betas=(self.beta1, self.beta2),
+                                  eps=self.adam_eps,
+                                  bias_correction=True,
+                                  adam_w_mode=False,
+                                  weight_decay=self.weight_decay,
+                                  amsgrad=False)
+        lr_scheduler = None
+        if self.warmup_steps > 0:
+            lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
+                optimizer,
+                warmup_min_lr=0.2 * self.lr_init,
+                warmup_max_lr=self.lr_init,
+                warmup_num_steps=self.warmup_steps,
+                warmup_type='linear')
+
+
+
+        return optimizer,lr_scheduler
+#        return optim_groups
 
     # We have to compute the number of steps per epoch ourselves
     # as this value is not provided directly by pytorch lightning
@@ -722,17 +753,19 @@ class RWKV(nn.Module):
     # If anyone have a better idea, let me know
     # (have experimented with, reimplementing the above, but it is not trivial, unfortunately)
     #
-    def manual_backward(self, loss: torch.Tensor, *args, **kwargs):
-        if self._fabric:
-            self._fabric.backward(loss, *args, **kwargs)
-        else:
-            # self._verify_is_manual_optimization("manual_backward")
-            self.trainer.strategy.backward(loss, None, *args, **kwargs)
+    def manual_backward(self,model_engine, loss: torch.Tensor, *args, **kwargs):
+        # loss.backward(retain_graph = True)
+        model_engine.backward(loss,retain_graph = True)
+        # if self._fabric:
+        #     self._fabric.backward(loss, *args, **kwargs)
+        # else:
+        #     # self._verify_is_manual_optimization("manual_backward")
+        #     self.trainer.strategy.backward(loss, None, *args, **kwargs)
 
     #
     # Main compute_loss function, this is called by the trainer loop
     #
-    def compute_loss(self, batch, batch_idx, is_training_run: bool):
+    def compute_loss(self, model_engine,batch, batch_idx, is_training_run: bool,):
         seq = batch['input_ids']
         assert isinstance(seq, torch.Tensor) and seq.ndim == 2
         ori_seq_mask = batch['attention_mask']
@@ -984,7 +1017,7 @@ class RWKV(nn.Module):
                     else:
                         # Undocumented multiple backward pass support
                         # https://github.com/Lightning-AI/lightning/blob/678f642808c54e4c490caee4df5d357301c976bb/tests/trainer/optimization/test_manual_optimization.py#L251
-                        self.manual_backward(learning_loss, optimizer, retain_graph=True)
+                        self.manual_backward(model_engine,learning_loss, optimizer)
 
                         # Accumulate without gradient, as we already did the backward pass
                         total_loss = total_loss + segment_loss.clone().detach().requires_grad_(False)
