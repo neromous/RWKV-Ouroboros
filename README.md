@@ -56,6 +56,7 @@ qq：**226615983**
 ## 相关项目
 本项目内的实现参考以下项目, 感谢bo给了我们rwkv这一灵感，感谢blealtan和pico对infctx训练的研发和改进
 
-https://github.com/RWKV/RWKV-infctx-trainer
-https://github.com/BlinkDL/RWKV-LM
-https://github.com/Blealtan/RWKV-LM-LoRA
+- https://github.com/RWKV/RWKV-infctx-trainer
+- https://github.com/BlinkDL/RWKV-LM
+- https://github.com/Blealtan/RWKV-LM-LoRA
+
