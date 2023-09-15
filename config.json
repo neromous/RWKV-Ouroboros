@@ -13,6 +13,16 @@
     "RWKV_FLOAT_MODE": "fp16"
   },
   "role": {
+    "master": {
+      "prefix": [
+        65530,
+        65532
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+
     "system": {
       "prefix": [
         65530,
