@@ -1,6 +1,10 @@
 import json
 import time
-from utils import log
+from utils import log, load_config
+from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
+tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
+config = load_config()
+
 
 def save(data, path,append=False):
     """
@@ -16,6 +20,7 @@ def save(data, path,append=False):
         # log('save', path, s, data)
         f.write(s+"\n")
 
+
 def load(path):
     with open(path, 'r', encoding='utf-8') as f:
         texts = f.readlines()
@@ -28,8 +33,34 @@ def load(path):
 
 
 class Model(object):
+
     @classmethod
-    def db_path(cls):
+    def get_special_token(cls, role, pos):
+        r = config["role"]
+        return r[role][pos]
+
+    @classmethod
+    def is_valid_token(cls, token):
+        if 65535 >= token and token >= 0:
+            return True
+        else:
+            return False
+
+    @classmethod
+    def is_valid_role(cls, role):
+        return role in config['role'].keys()
+
+    @classmethod
+    def encode(cls, text) -> list:
+        return tokenizer.encode(text)
+
+    @classmethod
+    def decode(cls, tokens) -> str:
+        tokens = [x for x in tokens if cls.is_valid_token(x)]
+        return tokenizer.decode(tokens)
+
+    @classmethod
+    def db_path(cls) -> str:
         classname = cls.__name__
         path = 'data/{}.jsonl'.format(classname)
         return path

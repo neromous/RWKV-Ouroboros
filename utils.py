@@ -2,6 +2,11 @@ import os.path
 import time
 import json
 
+def load_config() -> dict:
+    with open("./config.json","r",encoding="utf-8") as f:
+        text = f.read()
+    res = json.loads(text)
+    return res
 
 def log(*args, **kwargs):
     # time.time() 返回 unix time
