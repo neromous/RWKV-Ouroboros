@@ -1,4 +1,5 @@
 from data_models import JsonlData
+import torch
 
 
 class Sft(JsonlData):

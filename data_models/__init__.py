@@ -2,6 +2,8 @@ import json
 import time
 from utils import log, load_config
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
+import torch
+
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 config = load_config()
 
@@ -106,3 +108,10 @@ class JsonlData:
             if v == m.__dict__[k]:
                 ms.append(m)
         return ms
+
+    @classmethod
+    def to_tensor(self, coll) -> torch.tensor:
+        res = []
+        for x in coll:
+            res += x.to_tokens()
+        return torch.tensor([res], dtype=torch.long)
