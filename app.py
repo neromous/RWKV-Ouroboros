@@ -7,8 +7,7 @@ from models.todo import Todo
 from models.instructon import Instruction
 from models.conversation import Message, Scene
 from llm_datasets.sft import Sft
-
-
+from common import TrainData
 
 model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/0.4b/rwkv-0.pth",
              n_embd= 1024,
@@ -26,20 +25,30 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      config="ds_config.config",
                                                      )
 
-@route('/train', method='POST')
-def index():
+@route('/save-weight', method='POST')
+def save_weight():
     global model_engine
-    data = request.json
-    coll = Sft.all()
-    coll = Sft.find_all(section_id=1)
-    coll =Sft.to_tensor(coll)
-    batch = {"input_ids": coll.to('cuda'),
+    item = request.json
+    model_engine.to(torch.device('cpu'))
+    torch.save(model_engine.module.state_dict(), "save.pth")
+    return {"response": "model save"}
+
+
+@route('/train/tx-data', method='POST')
+def train():
+    global model_engine
+    item = request.json
+    # parse
+    if type(item) == dict:
+        train_data = TrainData(item)
+    else:
+        return {"message": "failed for unvalid data, request should be a dict"}
+    batch = {"input_ids": train_data.to_tensor().to('cuda'),
              "attention_mask": None}
     m = model_engine.compute_loss(model_engine, batch, None, True)
     loss = m.item()
     model_engine.backward(m)
     model_engine.step()
-    return {"loss" : loss}
-
+    return {"loss": loss}
 
 run(host='0.0.0.0', port=3000)
