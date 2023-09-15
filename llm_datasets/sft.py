@@ -1,4 +1,4 @@
-from data_models import JsonlData
+from llm_datasets import JsonlData
 import torch
 
 

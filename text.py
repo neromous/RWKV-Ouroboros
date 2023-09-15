@@ -6,7 +6,7 @@ import json
 from models.todo import Todo
 from models.instructon import Instruction
 from models.conversation import Message, Scene
-from data_models.sft import Sft
+from llm_datasets.sft import Sft
 
 n = Todo.new({"title":"dddddd"})
 
