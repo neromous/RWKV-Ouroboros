@@ -26,22 +26,20 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      config="ds_config.config",
                                                      )
 
-coll = Sft.all()
-coll = Sft.find_all(section_id=1)
-print(len(coll))
-data = []
-for item in coll :
-    data += item.to_tokens()
+@route('/train', method='POST')
+def index():
+    global model_engine
+    data = request.json
+    coll = Sft.all()
+    coll = Sft.find_all(section_id=1)
+    coll =Sft.to_tensor(coll)
+    batch = {"input_ids": coll.to('cuda'),
+             "attention_mask": None}
+    m = model_engine.compute_loss(model_engine, batch, None, True)
+    loss = m.item()
+    model_engine.backward(m)
+    model_engine.step()
+    return {"loss" : loss}
 
-print(data)
-data = torch.tensor([data], dtype=torch.long).to('cuda')
-batch = {"input_ids": data,
-         "attention_mask": None}
-m = model_engine.compute_loss(model_engine, batch, None, True)
 
-print(m)
-model_engine.backward(m)
-
-model_engine.step()
-
-# run(host='0.0.0.0', port=3000)
+run(host='0.0.0.0', port=3000)
