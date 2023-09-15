@@ -2,11 +2,20 @@ import os.path
 import time
 import json
 
+
+def save_data(item: dict):
+    text = json.dumps(item, ensure_ascii=False)
+    text = text + "\n"
+    with open('./data/log.jsonl', 'a', encoding='utf-8') as f:
+        f.write(text)
+
+
 def load_config() -> dict:
-    with open("./config.json","r",encoding="utf-8") as f:
+    with open("./config.json", "r", encoding="utf-8") as f:
         text = f.read()
     res = json.loads(text)
     return res
+
 
 def log(*args, **kwargs):
     # time.time() 返回 unix time

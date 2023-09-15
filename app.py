@@ -3,17 +3,14 @@ import torch
 import deepspeed
 from bottle import route, run, template, request
 import json
-from models.todo import Todo
-from models.instructon import Instruction
-from models.conversation import Message, Scene
-from llm_datasets.sft import Sft
 from common import TrainData
+from utils import save_data
 
-model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/0.4b/rwkv-0.pth",
-             n_embd= 1024,
-             n_layer=24,
+model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-0.pth",
+             n_embd=2560,
+             n_layer=32,
              vocab_size=65536,
-             lr_init=1.0e-5,
+             lr_init=1.0e-4,
              lr_final=1.0e-6,
              warmup_steps=4)
 
@@ -22,8 +19,7 @@ optimizer, lr_scheduler = model.get_optimizers()
 model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      optimizer=optimizer,
                                                      lr_scheduler=lr_scheduler,
-                                                     config="ds_config.config",
-                                                     )
+                                                     config="ds_config.config")
 
 @route('/save-weight', method='POST')
 def save_weight():
@@ -49,6 +45,8 @@ def train():
     loss = m.item()
     model_engine.backward(m)
     model_engine.step()
+    save_data(item)
     return {"loss": loss}
+
 
 run(host='0.0.0.0', port=3000)

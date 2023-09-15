@@ -1,9 +1,7 @@
 from llm_datasets import JsonlData
 import torch
 
-
 class Sft(JsonlData):
-
     @classmethod
     def source_path(cls):
         return "/home/neromous/Documents/blackfog/RWKV-Ouroboros/data/Sft.jsonl"
