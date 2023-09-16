@@ -21,6 +21,7 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      lr_scheduler=lr_scheduler,
                                                      config="ds_config.config")
 
+
 @route('/save-weight', method='POST')
 def save_weight():
     global model_engine

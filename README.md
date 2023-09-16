@@ -34,8 +34,8 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 在3000端口建立服务
 
 资源需求
-3B 显存 12gb， 内存64gb
-7b 显存 20gb， 内存150gb
+- 3B: 显存 12gb， 内存64gb
+- 7b: 显存 20gb， 内存150gb
 
 
 ## 路线图
@@ -60,3 +60,5 @@ qq：**226615983**
 - https://github.com/BlinkDL/RWKV-LM
 - https://github.com/Blealtan/RWKV-LM-LoRA
 
+除了以上大佬外， 本项目受杀手锅的“琉璃微调法”所激励， 可以说没有“琉璃微调法”就没有本项目。
+- https://github.com/ssg-qwq
