@@ -3,7 +3,8 @@ from torch.nn import functional as F
 import numpy as np
 import gc
 from rwkv_model.model_run import RWKV_RNN
-from models.conversation import Message,Scene
+from models.message import Message
+from models.scene import Scene
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 import copy
 from tqdm import tqdm
@@ -36,6 +37,8 @@ class Inference:
 
     def reset_state(self):
         self.state = copy.deepcopy(self.init_state)
+        torch.cuda.empty_cache()
+        gc.collect()
         return self
     
     @classmethod
@@ -98,7 +101,6 @@ class Inference:
     def generate(self, message:Message, callback=None, state = None):
         if state is not None:
             state = self.state
-        print(message.__dict__)
         all_tokens = []
         out_last = 0
         out_str = ''
@@ -114,8 +116,9 @@ class Inference:
             if self.init_state == None:
                 self.init_state = copy.deepcopy(state)
             self.state = copy.deepcopy(state)
-            response = {"response":"success generate"}
-            return response
+            message.generated = True
+            message.response = ""
+            return message
         else:
             token = False
             for i in range(token_count):
@@ -159,6 +162,19 @@ class Inference:
                 self.init_state = copy.deepcopy(state)
             # 保存state到env
             self.state = copy.deepcopy(state)
-            response = {"prompt": message.text, "response": out_str}
-            return response
+            message.generated =  True
+            message.response = out_str
+            return message
 
+        def finish(self):
+            messages = []
+            for message in self.messages:
+                if message.generated:
+                    messages.append(message)
+                else:
+                    message = self.generate(message)
+                    message.save()
+                    self.scene.add_message(message)
+                    messages.append(message)
+            self.message = messages
+            return self

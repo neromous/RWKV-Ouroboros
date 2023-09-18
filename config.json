@@ -74,15 +74,12 @@
     "tokenizer_name": ""
   },
   "trainer": {
-    "load_model": "/home/neromous/pyblackfog/rwkv-output-models/3b/rwkv-9.pth",
     "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/3b",
     "wandb": "",
     "weight_decay": 0,
     "layerwise_lr": 0,
     "random_seed": -1,
-    "data_file": "/home/neromous/data/bonsai",
-    "text_book": "/home/neromous/data/bonsai-textbook",
-    "data_type": "utf-8",
+
     "epoch_steps": 100000,
     "epoch_count": 500,
     "epoch_begin": 20,

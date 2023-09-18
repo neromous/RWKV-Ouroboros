@@ -1,39 +1,32 @@
-from rwkv_model.model import RWKV
-import torch
-import deepspeed
 from bottle import route, run, template, request
 import json
 from models.instructon import Instruction
 from models.conversation import Message, Scene
 from llm_datasets.sft import Sft
 from rwkv_model.inference import Inference
+from models.conversation import Message,Scene
 
 m = Inference(model_name="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth")
 
 m.load_model()
-n = m.scene.add_message({"text":"User: 你好啊","role":"user","token_count":0})
-t = m.scene.add_message({"text":"Assistant: ",
-                         "role":"robot",
-                         "token_count":256,
-                         "over":False})
-msg = m.generate(n)
-print(msg)
-msg = m.generate(t,state = m.state)
-print(msg)
-print(m.state)
-print(m.init_state)
-x = m.scene.add_message({"text":"User: 我想见你","role":"user","token_count":0})
-y = m.scene.add_message({"text":"Assistant: ",
-                         "role":"robot",
-                         "token_count":256,
-                         "over":False})
-msg = m.generate(x,state= m.state)
-print(msg)
-msg = m.generate(y,state = m.state)
-print(msg)
-print(m.state)
-print(m.init_state)
 
+data = [{"text":"User: 你好啊","role":"user","token_count":0},
+        {"text":"Assistant: ",
+                         "role":"robot",
+                         "token_count":256,
+                         "over":False},
+        {"text":"User: 我想见你","role":"user","token_count":0},
+        {"text":"Assistant: ",
+                         "role":"robot",
+                         "token_count":256,
+                         "over":False}
+
+        ]
+
+for msg in data:
+    msg = Message.new(msg)
+    res = m.generate(msg, state = m.state)
+    print(res)
 # n = Todo.new({"title":"dddddd"})
 
 # tt = Instruction.new({"instruction":"dfafdfa"})

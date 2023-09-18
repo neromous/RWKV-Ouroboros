@@ -9,6 +9,8 @@ class Message(Model):
         self.text = form.get("text", "")
         self.prefix = form.get("prefix", "")
         self.postfix = form.get("postfix", "")
+        self.prefix_token = form.get("prefix_token", [])
+        self.prefix_token = form.get("postfix_token", [])
         self.temperature = form.get("temperature", 0.1)
         self.top_p = form.get("top_p", 0.1)
         self.top_k = form.get("top_k", 0)
@@ -30,43 +32,12 @@ class Message(Model):
         tokens = self.encode(text)
         # 采用token的方式直接增加special token 避免分词不精确
         token_prefix = self.get_special_token(self.role, "prefix")
+        self.prefix_token = token_prefix
         token_postfix = self.get_special_token(self.role, "postfix")
+        self.postfix_token = token_postfix
         if self.over:
             tokens = token_prefix + tokens + token_postfix
         else:
             tokens = token_prefix + tokens
         return tokens
 
-
-class Scene(Model):
-    def __init__(self, form):
-        self.id = None
-        self.title = form.get("title", "")
-        self.messages = form.get("messages", [])
-
-    def messages(self):
-        m = Message.find_all(scene_id=self.id)
-        return m
-
-    def add_message(self, form: dict) -> Message:
-        form['scene_id'] = self.id
-        message = Message.new(form)
-        return message
-
-    def set_system(self, text, **kargs):
-        kargs["text"] = text
-        kargs["role"] = "system"
-        message = self.add_message(kargs)
-        return message
-
-    def add_request(self, text, **kargs):
-        kargs["text"] = text
-        kargs["role"] = "user"
-        message = self.add_message(kargs)
-        return message
-
-    def add_response(self, text, **kargs):
-        kargs["text"] = text
-        kargs["role"] = "robot"
-        message = self.add_message(kargs)
-        return message

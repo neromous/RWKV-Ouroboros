@@ -1,39 +1,28 @@
 from bottle import route, run, template, request
 import json
 from rwkv_model.inference import Inference
-from models.conversation import Message,Scene
-
-
+from models.message import Message
+from models.scene import Scene
 
 model = Inference(model_name="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth")
-
-
+model.load_model()
 
 @route('/inference/generate', method='POST')
 def generate():
-    global model_engine
+    global model
     item = request.json
     messages = item.get('messages',[])
+    resp = []
     for message in messages:
-        msg = Message.new(message)
-        resp = model.generate(msg)
+        msg = model.scene.add_message(message)
+        msg = model.generate(msg, state=model.state)
+        msg.save()
+        resp.append(msg.json())
+    return {"messages": resp}
 
 
-    return {"response": "model save"}
 
 
 
 
-
-m.load_model()
-n = m.scene.add_message({"text":"User: 你好啊","role":"user","token_count":0})
-t = m.scene.add_message({"text":"Assistant: ",
-                         "role":"robot",
-                         "token_count":256,
-                         "over":False})
-msg = m.generate(n)
-print(msg)
-msg = m.generate(t)
-print(msg)
-print(m.state)
-print(m.init_state)
+run(host='0.0.0.0', port=3000)
