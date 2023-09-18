@@ -21,6 +21,9 @@ class Message(Model):
         self.token_count = form.get("token_count", 256)
         self.over = form.get("over", True)
         self.scene_id = form.get("scene_id", -1)
+        self.response = form.get('response', "")
+        self.generated = form.get('generated', False)
+        self.to_train = form.get('to_train', True)
 
     def to_tokens(self) -> list:
         text = self.prefix + self.text + self.postfix
@@ -28,44 +31,42 @@ class Message(Model):
         # 采用token的方式直接增加special token 避免分词不精确
         token_prefix = self.get_special_token(self.role, "prefix")
         token_postfix = self.get_special_token(self.role, "postfix")
-        return token_prefix + tokens + token_postfix
+        if self.over:
+            tokens = token_prefix + tokens + token_postfix
+        else:
+            tokens = token_prefix + tokens
+        return tokens
 
 
 class Scene(Model):
     def __init__(self, form):
         self.id = None
-        self.title = form.get("name", "")
-        self.history = form.get("history", [])
+        self.title = form.get("title", "")
+        self.messages = form.get("messages", [])
 
     def messages(self):
         m = Message.find_all(scene_id=self.id)
         return m
 
-    def add_message(self, message:Message):
-        message.scene_id = self.id
-        message.save()
+    def add_message(self, form: dict) -> Message:
+        form['scene_id'] = self.id
+        message = Message.new(form)
         return message
 
     def set_system(self, text, **kargs):
         kargs["text"] = text
         kargs["role"] = "system"
-        message = Message.new(kargs)
-        message.save()
-        self.add_message(message)
+        message = self.add_message(kargs)
         return message
 
     def add_request(self, text, **kargs):
         kargs["text"] = text
         kargs["role"] = "user"
-        message = Message.new(kargs)
-        message.save()
-        self.add_message(message)
+        message = self.add_message(kargs)
         return message
 
     def add_response(self, text, **kargs):
         kargs["text"] = text
         kargs["role"] = "robot"
-        message = Message.new(kargs)
-        message.save()
-        self.add_message(message)
+        message = self.add_message(kargs)
         return message
