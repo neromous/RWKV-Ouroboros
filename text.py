@@ -18,10 +18,22 @@ t = m.scene.add_message({"text":"Assistant: ",
                          "over":False})
 msg = m.generate(n)
 print(msg)
-msg = m.generate(t)
+msg = m.generate(t,state = m.state)
 print(msg)
 print(m.state)
 print(m.init_state)
+x = m.scene.add_message({"text":"User: 我想见你","role":"user","token_count":0})
+y = m.scene.add_message({"text":"Assistant: ",
+                         "role":"robot",
+                         "token_count":256,
+                         "over":False})
+msg = m.generate(x,state= m.state)
+print(msg)
+msg = m.generate(y,state = m.state)
+print(msg)
+print(m.state)
+print(m.init_state)
+
 # n = Todo.new({"title":"dddddd"})
 
 # tt = Instruction.new({"instruction":"dfafdfa"})

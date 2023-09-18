@@ -34,6 +34,10 @@ class Inference:
         gc.collect()
         return self
 
+    def reset_state(self):
+        self.state = copy.deepcopy(self.init_state)
+        return self
+    
     @classmethod
     def get_special_token(cls, role, pos):
         r = config["role"]
@@ -91,7 +95,9 @@ class Inference:
             out = torch.multinomial(probs, num_samples=1)[0]
             return int(out)
 
-    def generate(self, message:Message, callback=None):
+    def generate(self, message:Message, callback=None, state = None):
+        if state is not None:
+            state = self.state
         print(message.__dict__)
         all_tokens = []
         out_last = 0
@@ -101,12 +107,13 @@ class Inference:
         if token_count == 0:
             tokens = message.to_tokens()
             while len(tokens) > 0:
-                out, self.state = self.model.forward(tokens[0], self.state)
+                out, state = self.model.forward(tokens[0], state)
                 tokens = tokens[1:]
                 #out, self.state = self.model.forward(tokens[:message.chunk_len], self.state)
                 #tokens = tokens[message.chunk_len:]
-            if self.init_state is None:
-                self.init_state = copy.deepcopy(self.state)
+            if self.init_state == None:
+                self.init_state = copy.deepcopy(state)
+            self.state = copy.deepcopy(state)
             response = {"response":"success generate"}
             return response
         else:
@@ -117,7 +124,7 @@ class Inference:
                 while len(tokens) > 0:
                     #out, self.state = self.model.forward(tokens[:message.chunk_len], self.state)
                     #tokens = tokens[message.chunk_len:]
-                    out, self.state = self.model.forward(tokens[0], self.state)
+                    out, state = self.model.forward(tokens[0], state)
                     tokens = tokens[1:]
 
                 for n in message.token_ban:
@@ -147,8 +154,11 @@ class Inference:
                         callback(tmp)
                     out_str += tmp
                     out_last = i + 1
-            if self.init_state is None:
-                self.init_state = copy.deepcopy(self.state)
+            # 保存state 进行初始化
+            if self.init_state == None:
+                self.init_state = copy.deepcopy(state)
+            # 保存state到env
+            self.state = copy.deepcopy(state)
             response = {"prompt": message.text, "response": out_str}
             return response
 
