@@ -3,13 +3,13 @@ import torch
 import deepspeed
 from bottle import route, run, template, request
 import json
-from common import TrainData
+from models.scene import Scene
 from utils import save_data
 
 model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-0.pth",
-             n_embd=2560,
-             n_layer=32,
-             vocab_size=65536,
+             #n_embd=2560,
+             #n_layer=32,
+             #vocab_size=65536,
              lr_init=1.0e-4,
              lr_final=1.0e-6,
              warmup_steps=4)
@@ -37,7 +37,7 @@ def train():
     item = request.json
     # parse
     if type(item) == dict:
-        train_data = TrainData(item)
+        train_data = Scene(item)
     else:
         return {"message": "failed for unvalid data, request should be a dict"}
     batch = {"input_ids": train_data.to_tensor().to('cuda'),

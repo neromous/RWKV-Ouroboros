@@ -1,31 +1,50 @@
-from rwkv_model.model import RWKV
-import torch
-import deepspeed
 from bottle import route, run, template, request
 import json
-from models.todo import Todo
 from models.instructon import Instruction
 from models.conversation import Message, Scene
 from llm_datasets.sft import Sft
+from rwkv_model.inference import Inference
+from models.conversation import Message,Scene
 
-n = Todo.new({"title":"dddddd"})
+m = Inference(model_name="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth")
 
-tt = Instruction.new({"instruction":"dfafdfa"})
+m.load_model()
 
-n.delete(4)
+data = [{"text":"User: 你好啊","role":"user","token_count":0},
+        {"text":"Assistant: ",
+                         "role":"robot",
+                         "token_count":256,
+                         "over":False},
+        {"text":"User: 我想见你","role":"user","token_count":0},
+        {"text":"Assistant: ",
+                         "role":"robot",
+                         "token_count":256,
+                         "over":False}
 
-print(Todo.find_by(title="dddddd"))
+        ]
 
-################################
-message = Message.new({"content" :"dfasddfa"})
-print(message)
-print(message.to_tokens())
+for msg in data:
+    msg = Message.new(msg)
+    res = m.generate(msg, state = m.state)
+    print(res)
+# n = Todo.new({"title":"dddddd"})
 
-scene = Scene.new({"title":"测试用例"})
-scene.add_request({"text":"dfasdfs"})
-print(scene)
-with open('./data/sft.jsonl','r',encoding='utf-8') as f:
-    texts = f.readlines()
+# tt = Instruction.new({"instruction":"dfafdfa"})
+
+# n.delete(4)
+
+# print(Todo.find_by(title="dddddd"))
+
+# ################################
+# message = Message.new({"content" :"dfasddfa"})
+# print(message)
+# print(message.to_tokens())
+
+# scene = Scene.new({"title":"测试用例"})
+# scene.add_request({"text":"dfasdfs"})
+# print(scene)
+# with open('./data/sft.jsonl','r',encoding='utf-8') as f:
+#     texts = f.readlines()
 
 # data = []
 # n = 0
@@ -39,7 +58,7 @@ with open('./data/sft.jsonl','r',encoding='utf-8') as f:
 #         i += 1
 #     n += 1
 
-m = Sft.all()
-print(m[-1].__dict__)
-print(m[-1].to_tokens())
-print(Sft.find_all(section_id=1))
+# m = Sft.all()
+# print(m[-1].__dict__)
+# print(m[-1].to_tokens())
+# print(Sft.find_all(section_id=1))
