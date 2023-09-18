@@ -164,6 +164,7 @@ class Inference:
             self.state = copy.deepcopy(state)
             message.generated =  True
             message.response = out_str
+            print(message)
             return message
 
         def finish(self):

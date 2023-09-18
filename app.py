@@ -37,7 +37,7 @@ def train():
     item = request.json
     # parse
     if type(item) == dict:
-        train_data = Scene(item)
+        train_data = Scene.new(item)
     else:
         return {"message": "failed for unvalid data, request should be a dict"}
     batch = {"input_ids": train_data.to_tensor().to('cuda'),

@@ -165,7 +165,7 @@ class Model(object):
                     break
             log('debug', index)
             models[index] = self
-        l = [ m.__dict__ for m in models]
+        l = [ m.json() for m in models]
         path = self.db_path()
         for i, item in enumerate(l):
             if i == 0:
