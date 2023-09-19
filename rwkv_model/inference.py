@@ -17,7 +17,8 @@ def my_func(tmp):
     print(tmp, end="", flush=True)
 
 class Inference:
-    def __init__(self, model_name: str,
+    def __init__(self,
+                 model_name: str,
                  model_weights=None):
         self.model_weights = model_weights
         self.model_name = model_name
@@ -29,7 +30,7 @@ class Inference:
     def load_model(self):
         torch.cuda.empty_cache()
         gc.collect()
-        self.model = RWKV_RNN(self.model_name,model_weights=self.model_weights,float_type="fp16")
+        self.model = RWKV_RNN(self.model_name,model_weights=self.model_weights,float_type="bf16")
         return self
 
     def clean_model(self):
@@ -102,9 +103,10 @@ class Inference:
             out = torch.multinomial(probs, num_samples=1)[0]
             return int(out)
 
-    def generate(self, message:Message, callback=my_func, state = None):
-        if state is not None:
-            state = self.state
+    def generate(self,
+                 message:Message,
+                 callback=my_func,
+                 state = None):
         all_tokens = []
         out_last = 0
         out_str = ''
@@ -112,11 +114,12 @@ class Inference:
         occurrence = {}
         if token_count == 0:
             tokens = message.to_tokens()
+            print(tokens)
             while len(tokens) > 0:
-                out, state = self.model.forward(tokens[0], state)
-                tokens = tokens[1:]
-                #out, self.state = self.model.forward(tokens[:message.chunk_len], self.state)
-                #tokens = tokens[message.chunk_len:]
+                #out, state = self.model.forward(tokens[0], state)
+                #tokens = tokens[1:]
+                out, state = self.model.forward(tokens[:message.chunk_len], state)
+                tokens = tokens[message.chunk_len:]
             if self.init_state == None:
                 self.init_state = copy.deepcopy(state)
             self.state = copy.deepcopy(state)
@@ -129,10 +132,10 @@ class Inference:
                 tokens = message.to_tokens()  if i == 0 else [token]
                 # forward & adjust prob.
                 while len(tokens) > 0:
-                    #out, self.state = self.model.forward(tokens[:message.chunk_len], self.state)
-                    #tokens = tokens[message.chunk_len:]
-                    out, state = self.model.forward(tokens[0], state)
-                    tokens = tokens[1:]
+                    out, state = self.model.forward(tokens[:message.chunk_len], state)
+                    tokens = tokens[message.chunk_len:]
+                    #out, state = self.model.forward(tokens[0], state)
+                    #tokens = tokens[1:]
 
                 for n in message.token_ban:
                     out[n] = -float('inf')
@@ -168,7 +171,6 @@ class Inference:
             self.state = copy.deepcopy(state)
             message.generated =  True
             message.response = out_str
-            print(message)
             return message
 
         def finish(self):

@@ -11,7 +11,7 @@ from rwkv_model.inference import Inference
 import copy
 
 
-model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-0.pth",
+model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth",
              #n_embd=2560,
              #n_layer=32,
              #vocab_size=65536,
@@ -31,7 +31,7 @@ infer_model = Inference(model_name="./save.pth")
 
 @route('/inference/load-model', method='POST')
 def load_model():
-    global infer_model
+    global infer_model, model_engine
     item = request.json
     in_cpu = item.get('in_cpu')
     infer_model.clean_model()
@@ -58,9 +58,10 @@ def init():
     item = request.json
     messages = item.get('messages',[])
     resp = []
+    infer_model.state = None
     for message in messages:
         msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg, state=None)
+        msg = infer_model.generate(msg, state=infer_model.state)
         msg.save()
         resp.append(msg.json())
     infer_model.init_state = copy.deepcopy(infer_model.state)
@@ -83,6 +84,8 @@ def generate():
     messages = item.get('messages',[])
     resp = []
     for message in messages:
+        # print(infer_model.state)
+        # print(infer_model.init_state)
         msg = infer_model.scene.add_message(message)
         msg = infer_model.generate(msg, state=infer_model.state)
         msg.save()
