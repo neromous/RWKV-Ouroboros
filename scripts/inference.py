@@ -1,16 +1,19 @@
 import requests
 
 
-data = [{"text":"User: 你好啊","role":"user","token_count":0},
-        {"text":"Assistant: ",
-                         "role":"robot",
-                         "token_count":256,
-                         "over":False},
-        {"text":"User: 我想见你","role":"user","token_count":0},
-        {"text":"Assistant: ",
-                         "role":"robot",
-                         "token_count":256,
-                         "over":False}
+data = [{"text":"Question: 根据今天 下雨 日子 不好 写一千字短文\n\n",
+         "role":"user",
+         "token_count":0,
+         "over":True},
+        {"text":"Answer: ",
+         "role":"robot",
+         "token_count":2048,
+         "temperature":2.0,
+         "top_p":0.75,
+         "token_stop": [65530,65531,65532,65533,65534,65535],
+         "over":False},
+
+
 
         ]
 
