@@ -765,7 +765,7 @@ class RWKV(nn.Module):
     #
     # Main compute_loss function, this is called by the trainer loop
     #
-    def compute_loss(self, model_engine,batch, batch_idx, is_training_run: bool,):
+    def compute_loss(self,batch, batch_idx, is_training_run: bool,model_engine=None):
         seq = batch['input_ids']
         assert isinstance(seq, torch.Tensor) and seq.ndim == 2
         ori_seq_mask = batch['attention_mask']
@@ -1079,13 +1079,13 @@ class RWKV(nn.Module):
         return total_loss
 
     @TCompileBaseline
-    def training_step(self, batch, batch_idx):
-        total_loss = self.compute_loss(batch, batch_idx, True)
+    def training_step(self, batch, batch_idx,model_engine=None):
+        total_loss = self.compute_loss(batch, batch_idx, True,model_engine=model_engine)
 
-        self.log('train/loss', total_loss, prog_bar=True)
+        #self.log('train/loss', total_loss, prog_bar=True)
         # If set - forces the above train/loss log line to always be on a new line
         if self.substep_logging:
-            print("")
+            print(f"--->loss {total_loss}")
 
         if self.substep_cuda_cache_clear:
             gc.collect()

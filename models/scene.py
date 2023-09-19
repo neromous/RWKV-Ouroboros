@@ -7,13 +7,28 @@ class Scene(Model):
     def __init__(self, form):
         self.id = None
         self.title = form.get("title", "")
-        self.messages = form.get("messages", [])
+        #self.messages = form.get("messages", [])
         self.prefix = form.get("prefix", "")
         self.postfix = form.get("postfix", "")
         self.messages = [Message(x) for x in form.get("messages", [])]
         self.prefix_token = form.get("prefix_token", [])
         self.postfix_token = form.get("postfix_token", [])
 
+
+    def json(self):
+        d = self.__dict__.copy()
+        messages = self.messages
+        d['messages'] = [x.json() for x in messages if type(x) != dict ]
+        return d
+
+
+    @classmethod
+    def new(cls, form):
+        m = cls(form)
+        messages = m.messages
+        messages = [Message(x) for x in messages if type(x) ==  dict]
+        m.save()
+        return m
 
     def messages(self):
         m = Message.find_all(scene_id=self.id)

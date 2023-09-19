@@ -11,18 +11,19 @@ RWKV_RESCALE_LAYER = 6
 
 class RWKV_RNN(torch.nn.Module):
     def __init__(self, model_name: str,
-                 model_weights=False,
+                 model_weights:dict=None,
                  n_embd=-1,
                  n_layer=-1,
                  vocab_size=-1,
-                 device='cuda'):
+                 device='cuda',
+                 float_type=None):
         super().__init__()
         self.model_name = model_name
         self.n_embd = n_embd
         self.n_layer = n_layer
         self.device = device
         self.eval()
-        if model_weights:
+        if model_weights != None:
             w = model_weights
         else:
             w = torch.load(model_name, map_location='cpu')
@@ -41,7 +42,14 @@ class RWKV_RNN(torch.nn.Module):
         if vocab_size < 0:
             self.vocab_size = w['head.weight'].shape[0]
 
-        self.FLOAT_TYPE = w['head.weight'].dtype
+        if float_type == None:
+            self.FLOAT_TYPE = w['head.weight'].dtype
+        elif float_type == "fp16":
+            self.FLOAT_TYPE = torch.float16
+        elif float_type == "bf16":
+            self.FLOAT_TYPE = torch.bfloat16
+        else:
+            self.FLOAT_TYPE = torch.float
 
         for k in tqdm(w.keys()):
             block_id = int(k.split('.')[1]) if ('blocks.' in k) else 0
