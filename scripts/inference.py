@@ -14,7 +14,7 @@ data = [{"text":"User: 你好啊","role":"user","token_count":0},
 
         ]
 
-m = requests.post("http://0.0.0.0:7000/inference/generate",
+m = requests.post("http://0.0.0.0:3000/inference/generate",
                   json={"messages" : data,
 
                         })

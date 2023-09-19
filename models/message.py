@@ -41,3 +41,19 @@ class Message(Model):
             tokens = token_prefix + tokens
         return tokens
 
+
+    def load_file(self,path):
+        with open(path, 'r',encoding='utf-8') as f:
+            text = f.read()
+        self.text = text
+        return self
+
+    def yield_tokens(self, ctx = 2048):
+        tokens = self.to_tokens()
+        l = ctx
+        parts = int(len(tokens) // l) + 1
+        for i in range(0,parts):
+            yield tokens[i*l : (i+ 1)* l]
+        
+
+            

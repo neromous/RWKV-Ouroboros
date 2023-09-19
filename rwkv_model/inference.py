@@ -13,9 +13,12 @@ from utils import log, load_config
 config = load_config()
 
 
+def my_func(tmp):
+    print(tmp, end="", flush=True)
+
 class Inference:
     def __init__(self, model_name: str,
-                 model_weights=False):
+                 model_weights=None):
         self.model_weights = model_weights
         self.model_name = model_name
         self.model = None
@@ -26,11 +29,12 @@ class Inference:
     def load_model(self):
         torch.cuda.empty_cache()
         gc.collect()
-        self.model = RWKV_RNN(self.model_name,model_weights=self.model_weights)
+        self.model = RWKV_RNN(self.model_name,model_weights=self.model_weights,float_type="fp16")
         return self
 
     def clean_model(self):
         self.model = None
+        self.model_weights = None
         torch.cuda.empty_cache()
         gc.collect()
         return self
@@ -67,7 +71,7 @@ class Inference:
         return tokenizer.decode(tokens)
 
     @classmethod
-    def sample_logits(cls, logits:torch.tensor, temperature=1.0, top_p=0.85, top_k=0):
+    def sample_logits(cls, logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
         probs = F.softmax(logits.float(), dim=-1)
         top_k = int(top_k)
         if probs.device == torch.device('cpu'):
@@ -98,7 +102,7 @@ class Inference:
             out = torch.multinomial(probs, num_samples=1)[0]
             return int(out)
 
-    def generate(self, message:Message, callback=None, state = None):
+    def generate(self, message:Message, callback=my_func, state = None):
         if state is not None:
             state = self.state
         all_tokens = []
