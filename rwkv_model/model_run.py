@@ -7,7 +7,7 @@ from tqdm import tqdm
 import gc
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 
-RWKV_RESCALE_LAYER = 6 
+RWKV_RESCALE_LAYER = 6
 
 
 class RWKV_RNN(torch.nn.Module):

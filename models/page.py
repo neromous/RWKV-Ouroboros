@@ -48,6 +48,7 @@ class Page(Base):
                  role="text"
                  ):
         self.ctx = ctx
+        self.role = role
         self.prefix_token = prefix_token
         self.postfix_token = postfix_token
         self.tokens = tokens
@@ -118,49 +119,45 @@ class Page(Base):
                     prefix=prefix,
                     postfix=postfix,
                     prefix_token=prefix_token,
-                    postfix_token=postfix_token
-                    )
+                    postfix_token=postfix_token)
         return m
 
     @classmethod
     def org_header(cls,text:str):
-        print(text)
         role, text = text.split(" ",1)
         item = types.SimpleNamespace()
         #if item.prefix_token == [65530,65531]:
         if role == "SYSTEM":
             item.prefix_token = [65530,65531]
-            item.postfix_token = [65535]                        
+            item.postfix_token = [65535]
         elif role == "USER":
             item.prefix_token = [65530,65532]
-            item.postfix_token = [65535]                        
-        elif role == "ROBOT":
+            item.postfix_token = [65535]
+        elif role == "ROBOT" or role == "CLAUDE":
             item.prefix_token = [65530,65534]
-            item.postfix_token = [65535]                        
+            item.postfix_token = [65535]
         elif role == "THINK":
             item.prefix_token = [65530,65533]
-            item.postfix_token = [65535]            
+            item.postfix_token = [65535]
         else:
             item.prefix_token = []
             item.postfix_token = []
         item.text =   text
         res = cls(cls.encode(item.text),
+                  role = role,
                   prefix_token= item.prefix_token,
-                  postfix_token= item.postfix_token
-                  )
+                  postfix_token= item.postfix_token)
         return res
 
-
     @classmethod
-    def from_org(cls,
-                  path,
-                  ctx=2048,
-                  prefix="",
-                  postfix="",
-                  prefix_token=[],
-                  postfix_token=[]):
-        with open(path,'r',encoding='utf-8') as f:
-            text = f.read()
+    def org_parser(cls,
+                   text,
+                   ctx=2048,
+                   prefix="",
+                   postfix="",
+                   prefix_token=[],
+                   postfix_token=[]
+                   ):
         results = []
         parts = re.split("\n\* ",text)
         parts = [x.strip() for x in parts ]
@@ -171,21 +168,42 @@ class Page(Base):
             coll = [x.strip() for x in coll if not x.startswith("\n#+") and not x.startswith("#+")]
             coll = [x for x in coll if x !=""]
             coll = [cls.org_header(x) for x in coll]
-            results.append(coll)
+            if len(coll) != 0:
+                results.append(coll)
+        return results
+    
+    @classmethod
+    def from_org(cls,
+                  path,
+                  ctx=2048,
+                  prefix="",
+                  postfix="",
+                  prefix_token=[],
+                  postfix_token=[]):
+        with open(path,'r',encoding='utf-8') as f:
+            text = f.read()
+        results = cls.org_parser(
+                  text,
+                  ctx=ctx,
+                  prefix=prefix,
+                  postfix=postfix,
+                  prefix_token=prefix_token,
+                  postfix_token=postfix_token)
         return results
 
     @property
     def org_node(self):
-        if self.prefix_token == [65530,65531]:
-            role = "SYSTEM"
-        elif self.prefix_token == [65530,65532]:
-            role = "USER"
-        elif self.prefix_token == [65530,65534]:
-            role = "ROBOT"
-        elif self.prefix_token == [65530,65533]:
-            role = "THINK"
-        else:
-            role = "BOOK"
+        role = self.role
+        # if self.prefix_token == [65530,65531]:
+        #     role = "SYSTEM"
+        # elif self.prefix_token == [65530,65532]:
+        #     role = "USER"
+        # elif self.prefix_token == [65530,65534]:
+        #     role = "ROBOT"
+        # elif self.prefix_token == [65530,65533]:
+        #     role = "THINK"
+        # else:
+        #     role = "BOOK"
         text = "\n**" + " " + role +" " +self.text
         return text
 

@@ -1,6 +1,11 @@
 import requests
 import requests
 
+m = requests.post("http://0.0.0.0:3000/inference/load-model",
+                  json={"messages" : ""})
+
+print(m.json())
+
 
 data = [{"text":"""The following is a coherent verbose detailed conversation between a Chinese girl named Answer and her friend Question.
 Answer is very intelligent, creative and friendly.
