@@ -1,9 +1,12 @@
 import torch
+from orgparse import  load,loads
+from orgparse.node import OrgRootNode,OrgNode
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 import re
 import json
 from utils import log, load_config
 import types
+import random
 config = load_config()
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 
@@ -39,15 +42,19 @@ class Base:
         return tokenizer.decode(tokens)
 
 
+
 class Page(Base):
+    _padding = 0
     def __init__(self,
                  tokens,
-                 ctx=2048,
+                 ctx=2049,
                  prefix_token=[],
                  postfix_token=[],
-                 role="text"
-                 ):
+                 role="text",
+                 mask_value:float= 1.0,
+                 window=512):
         self.ctx = ctx
+        self.window=0
         self.role = role
         self.prefix_token = prefix_token
         self.postfix_token = postfix_token
@@ -55,14 +62,10 @@ class Page(Base):
         if len(self.ctx_token) > ctx:
             raise Exception()
 
-    @property
-    def ctx_token(self):
-        return self.prefix_token + self.tokens + self.postfix_token
-
     @classmethod
     def new(cls,
             text,
-            ctx=2048,
+            ctx=2049,
             prefix="",
             postfix="",
             prefix_token=[],
@@ -79,8 +82,7 @@ class Page(Base):
             m = cls(out ,
                     ctx=ctx,
                     prefix_token=l,
-                    postfix_token=r
-                    )
+                    postfix_token=r)
             res.append(m)
         return res
 
@@ -100,17 +102,18 @@ class Page(Base):
                      ctx = len(self.prefix_token) + int(item) + len(self.postfix_token),
                      prefix_token=self.prefix_token,
                      postfix_token=self.postfix_token)
-
             return m
+
 
     @classmethod
     def from_txt(cls,
-                  path,
-                  ctx=2048,
-                  prefix="",
-                  postfix="",
-                  prefix_token=[],
-                  postfix_token=[]):
+                 path,
+                 ctx=2049,
+                 prefix="",
+                 postfix="",
+                 prefix_token=[],
+                 postfix_token=[],
+                 ):
         with open(path,'r',encoding='utf-8') as f:
             text = f.read()
 
@@ -123,89 +126,36 @@ class Page(Base):
         return m
 
     @classmethod
-    def org_header(cls,text:str):
-        role, text = text.split(" ",1)
-        item = types.SimpleNamespace()
-        #if item.prefix_token == [65530,65531]:
-        if role == "SYSTEM":
-            item.prefix_token = [65530,65531]
-            item.postfix_token = [65535]
-        elif role == "USER":
-            item.prefix_token = [65530,65532]
-            item.postfix_token = [65535]
-        elif role == "ROBOT" or role == "CLAUDE":
-            item.prefix_token = [65530,65534]
-            item.postfix_token = [65535]
-        elif role == "THINK":
-            item.prefix_token = [65530,65533]
-            item.postfix_token = [65535]
+    def node2page(cls,node:OrgNode):
+        if node.todo != None:
+            role = node.todo.lower()
         else:
-            item.prefix_token = []
-            item.postfix_token = []
-        item.text =   text
-        res = cls(cls.encode(item.text),
-                  role = role,
-                  prefix_token= item.prefix_token,
-                  postfix_token= item.postfix_token)
-        return res
+            role = "text"
+        text = node.heading.strip() + "\n" + node.body.strip()
+        prefix_token = cls.get_special_token(role, "prefix")
+        postfix_token = cls.get_special_token(role, "postfix")
+        tokens = cls.encode(text)
+        m = cls(tokens,
+                ctx=2049,
+                prefix_token=prefix_token,
+                postfix_token=postfix_token,
+                role=role,
+                mask_value= 1.0)
+        return m
 
     @classmethod
-    def org_parser(cls,
-                   text,
-                   ctx=2048,
-                   prefix="",
-                   postfix="",
-                   prefix_token=[],
-                   postfix_token=[]
-                   ):
+    def from_org(cls,path,shuffle=False):
+        data = load(path)
+        root = data[0]
         results = []
-        parts = re.split("\n\* ",text)
-        parts = [x.strip() for x in parts ]
-        parts = [x for x in parts if x != '']
-        for part in parts:
-            coll = re.split("\n\*+\s+",part)
-            coll = coll[1:]
-            coll = [x.strip() for x in coll if not x.startswith("\n#+") and not x.startswith("#+")]
-            coll = [x for x in coll if x !=""]
-            coll = [cls.org_header(x) for x in coll]
-            if len(coll) != 0:
-                results.append(coll)
+        for level1 in root.children:
+            m = cls.node2page(level1.children[0])
+            for level2 in level1.children[1:]:
+                m =  m + cls.node2page(level2)
+            results.append(m)
+        if shuffle:
+            random.shuffle(results)
         return results
-    
-    @classmethod
-    def from_org(cls,
-                  path,
-                  ctx=2048,
-                  prefix="",
-                  postfix="",
-                  prefix_token=[],
-                  postfix_token=[]):
-        with open(path,'r',encoding='utf-8') as f:
-            text = f.read()
-        results = cls.org_parser(
-                  text,
-                  ctx=ctx,
-                  prefix=prefix,
-                  postfix=postfix,
-                  prefix_token=prefix_token,
-                  postfix_token=postfix_token)
-        return results
-
-    @property
-    def org_node(self):
-        role = self.role
-        # if self.prefix_token == [65530,65531]:
-        #     role = "SYSTEM"
-        # elif self.prefix_token == [65530,65532]:
-        #     role = "USER"
-        # elif self.prefix_token == [65530,65534]:
-        #     role = "ROBOT"
-        # elif self.prefix_token == [65530,65533]:
-        #     role = "THINK"
-        # else:
-        #     role = "BOOK"
-        text = "\n**" + " " + role +" " +self.text
-        return text
 
     @classmethod
     def from_jsonl(cls,
@@ -226,14 +176,16 @@ class Page(Base):
         return coll
 
     @classmethod
-    def from_dict(cls,
-                  data,
-                  ctx=2048):
+    def from_dict(cls,data,ctx=2049):
         role = data.get('role','text')
         text = data['text']
         m = cls(text,ctx=ctx)
         return m
-    
+
+    @property
+    def ctx_token(self):
+        return self.prefix_token + self.tokens + self.postfix_token
+
     @property
     def tensor(self):
         if len(self.tokens) > 0 :
@@ -241,9 +193,12 @@ class Page(Base):
         else:
             raise Exception()
 
-    def mask(self):
-        m = [1 for x in self.ctx_token]
-        return torch.tensor([m],dtype=torch.float)
+    def yield_token(self,ctx):
+        token = self.prefix_token + self.tokens + self.postfix_token
+        while len(token) > 0:
+            output = token[:ctx]
+            token = token[1024:]
+            yield output
 
     def __str__(self):
         return self.decode(self.tokens).strip()

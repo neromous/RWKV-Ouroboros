@@ -1,28 +1,92 @@
-from llm_datasets.sft import Sft
-from models.scene import Scene
-from models.message import Message
+import os
+os.environ['RWKV_JIT_ON'] = "1"
+os.environ['RWKV_TORCH_COMPILE'] = "0"
+os.environ['RWKV_FLOAT_MODE'] = "fp16"
+# my projects
+from rwkv_model.model_origin import RWKV
+import torch
+import gc
+import deepspeed
 import requests
-from models.page import Page
-import requests
-from models.page import Page
 from tqdm import tqdm
-coll = Page.from_org('./data/sft.org')
-train_data_set = []
-for nodes in coll:
-    cache = nodes[0]
-    for node in nodes[1:]:
-        cache = cache + node
-    train_data_set.append(cache)
+from models.page import Page
+import random
 
-data = train_data_set[0] + train_data_set[1] + train_data_set[2]
-print(data.tokens)
+model = RWKV("/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth",
+             lr_init=1.0e-5)
 
-for i in tqdm(range(10)):
-    m = requests.post("http://0.0.0.0:3000/train/tokens",
-                      json={'input_ids': data.tokens[:2049] ,
-                            'attention_mask':[1 for x in range(0,2048)]})
+optimizer, lr_scheduler = model.configure_optimizers()
 
-    print(m.json())
+model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
+                                                     optimizer=optimizer,
+                                                     lr_scheduler=lr_scheduler,
+                                                     config="ds_config_origin.config")
+
+
+datasets = Page.from_org('./data/sft.org',shuffle=True)
+data = datasets[0]
+for x in datasets[1:]:
+    data += x
+print(data)
+avg_loss = 5.0
+total_loss = 0
+i = 0
+
+while avg_loss > 0.5:
+    for tokens in data.yield_token(2049):
+        i += 1
+        idx = tokens
+        m = model_engine.training_step(idx)
+        loss = m.item()
+        total_loss += loss
+        avg_loss = total_loss / i
+        model_engine.backward(m)
+        model_engine.step()
+        print(f"\n[item-loss:{loss}  avg-loss:{avg_loss}]")
+        if i % 20 == 0:
+            out = [0 for x in range(0,2048)]
+            out[:512] = tokens[:512]
+            out = model_engine.inference(out)
+            res = ""
+            for m in range(out.size(0)):
+                row = out[m]
+                tt = model.sample_logits(row)
+                tts = Page.decode([tt])
+                if  '\ufffd' not in tts:
+                    res += tts
+            print("==tokens==",res)
+
+        if  i % 100 == 0 :
+            print("==save===")
+            model_engine.to(torch.device('cpu'))
+            torch.save(model_engine.module.state_dict(), f"save-{i}.pth")
+            model_engine.to(torch.device('cuda'))
+
+    print("===load data===")
+    datasets = Page.from_org('./data/sft.org',shuffle=True)
+    data = datasets[0]
+    for x in datasets[1:]:
+        data += x
+    print(data)
+
+
+# coll = Page.from_org('./data/sft.org')
+# train_data_set = []
+# for nodes in coll:
+#     cache = nodes[0]
+#     for node in nodes[1:]:
+#         cache = cache + node
+#     train_data_set.append(cache)
+
+# data = train_data_set[0] + train_data_set[1] + train_data_set[2]
+# print(data.tokens)
+
+# for i in tqdm(range(10)):
+#     m = requests.post("http://0.0.0.0:3000/train/tokens",
+#                       json={'input_ids': data.tokens[:2049] ,
+#                             'attention_mask':[1 for x in range(0,2048)]})
+
+#     print(m.json())
 
 
 # with open('/mnt/database/Datasets/materials/bonsai/sample.txt','r', encoding='utf-8') as f:

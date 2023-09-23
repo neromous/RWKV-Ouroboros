@@ -9,7 +9,7 @@ import torch
 # torch._C._jit_set_profiling_mode(True)
 import torch.nn as nn
 from torch.nn import functional as F
-
+import numpy as np
 # import pytorch_lightning as pl
 # from pytorch_lightning.utilities import rank_zero_info, rank_zero_only
 # from pytorch_lightning.strategies import DeepSpeedStrategy
@@ -408,15 +408,16 @@ class RWKV(nn.Module):
                  vocab_size = 65536,
                  ctx_len = 2048,
                  grad_cp = 1,
-                 weight_decay = 1.0e-6,
+                 weight_decay = 0.01,
                  pre_ffn = 0,
                  lr_init = 1.0e-5,
                  adam_eps = 1.0e-7,
                  beta1=0.9,
                  beta2=0.999,
-                 warmup_steps = 8,):
+                 warmup_steps = 8,
+                 adamw_mode=True):
         super().__init__()
-
+        self.adamw_mode =adamw_mode
         self.n_layer = n_layer
         self.n_embd = n_embd
         self.vocab_size = vocab_size
@@ -492,18 +493,18 @@ class RWKV(nn.Module):
         optim_groups = [
             {
                 "params": [param_dict[n] for n in lr_1x],
-                "weight_decay": 0.0,
+                "weight_decay": 0.01,
                 "lr": 1.0 * lr_init
             },
             {
             "params": [param_dict[n] for n in lr_2x],
-                "weight_decay": 0.0,
-                "lr": 2.0 * lr_init
+                "weight_decay": 0.01,
+                "lr": 1.0 * lr_init
             },
             {
                 "params": [param_dict[n] for n in lr_3x],
-                "weight_decay": 0.0,
-                "lr": 3.0 * lr_init
+                "weight_decay": 0.01,
+                "lr": 1.0 * lr_init
             },
         ]
 
@@ -512,7 +513,7 @@ class RWKV(nn.Module):
                                      betas=(self.beta1, self.beta2),
                                      eps=self.adam_eps,
                                      bias_correction=True,
-                                     adamw_mode=False,
+                                     adamw_mode=self.adamw_mode,
                                      weight_decay=self.weight_decay,
                                      amsgrad=False)
         lr_scheduler = None
@@ -526,39 +527,109 @@ class RWKV(nn.Module):
         return optimizer, lr_scheduler
 
 
-    def forward(self, batch:list):
-        args = self.args
-        # idx, targets, mask = x,y,z
-        idx, targets, mask = batch
-        mask = mask.view(-1)
-        sum_mask = torch.sum(mask).item()
-        # logits = self(idx)
+
+    def forward(self, idx):
         # -------- 计算 idx 到logits --------
         B, T = idx.size()
-        assert T <= args.ctx_len, "Cannot forward, model ctx_len is exhausted."
+        assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
 
         x = self.emb(idx)
+        x_emb = x
 
         for block in self.blocks:
-            if args.grad_cp == 1:
+            if self.grad_cp == 1:
                 x = deepspeed.checkpointing.checkpoint(block, x)
             else:
                 x = block(x)
         x = self.ln_out(x)
-
         logits = self.head(x)
 
         # -------- 计算loss  --------
+        return logits
+
+    def training_step(self, data,mask=None):
+        idx = data[:-1]
+        targets = data[1:]
+        if mask == None:
+            mask = [int(x!=0) for x in targets]
+        idx = torch.tensor([idx],dtype=torch.long).to('cuda')
+        targets = torch.tensor([targets],dtype=torch.long).to('cuda')
+        mask = torch.tensor([mask],dtype=torch.float16).to('cuda')
+        mask = mask.view(-1)
+        sum_mask = torch.sum(mask).item()
+        # 前向 获得ligts
+        logits = self(idx)
+        # 计算loss
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction="none")
+        if torch.any(torch.isnan(loss)):
+            print("\n=====error=======\n")
+            loss = torch.where(torch.isnan(loss), torch.full_like(loss,1.0e-7), loss)
+
         # loss_raw = loss
         loss = torch.sum(loss * mask) / sum_mask
         loss = L2Wrap.apply(loss, logits)
         return loss
 
+    def inference(self, tokens):
+        with torch.no_grad():
+            idx = [0 for x in range(0,self.ctx_len)]
+            idx[:len(tokens)] =  tokens
+            idx = torch.tensor([idx],dtype=torch.long).to('cuda')
+            # -------- 计算 idx 到logits --------
+            B, T = idx.size()
+            assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
 
-    def training_step(self, batch, batch_idx,model_engine=None):
-        total_loss = self(batch)
-        return total_loss
+            x = self.emb(idx)
+            x_emb = x
+
+            for block in self.blocks:
+                if self.grad_cp == 1:
+                    x = deepspeed.checkpointing.checkpoint(block, x)
+                else:
+                    x = block(x)
+            x = self.ln_out(x)
+            logits = self.head(x)
+            output = logits.view(-1, logits.size(-1))
+        # -------- 计算loss  --------
+        gc.collect()
+        torch.cuda.empty_cache()
+        return output
+
+    @classmethod
+    def sample_logits(cls, logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
+        probs = F.softmax(logits.float(), dim=-1)
+        top_k = int(top_k)
+        if probs.device == torch.device('cpu'):
+            probs = probs.numpy()
+            sorted_ids = np.argsort(probs)
+            sorted_probs = probs[sorted_ids][::-1]
+            cumulative_probs = np.cumsum(sorted_probs)
+            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
+            probs[probs < cutoff] = 0
+            if top_k < len(probs) and top_k > 0:
+                probs[sorted_ids[:-top_k]] = 0
+            if temperature != 1.0:
+                probs = probs ** (1.0 / temperature)
+            probs = probs / np.sum(probs)
+            out = np.random.choice(a=len(probs), p=probs)
+            return int(out)
+        else:
+            sorted_ids = torch.argsort(probs)
+            sorted_probs = probs[sorted_ids]
+            sorted_probs = torch.flip(sorted_probs, dims=(0,))
+            cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
+            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
+            probs[probs < cutoff] = 0
+            if top_k < len(probs) and top_k > 0:
+                probs[sorted_ids[:-top_k]] = 0
+            if temperature != 1.0:
+                probs = probs ** (1.0 / temperature)
+            out = torch.multinomial(probs, num_samples=1)[0]
+            return int(out)
+
+
+
+
 
     # def training_loss(self):
 

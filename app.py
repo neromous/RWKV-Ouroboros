@@ -63,13 +63,14 @@ def init():
     item = request.json
     messages = item.get('messages',[])
     resp = []
-    infer_model.state = None
     for message in messages:
         msg = infer_model.scene.add_message(message)
         msg = infer_model.generate(msg, state=infer_model.state)
         msg.save()
         resp.append(msg.json())
-    infer_model.init_state = copy.deepcopy(infer_model.state)
+    infer_model.set_init_state()
+    print(infer_model.state)
+    print(infer_model.init_state)
     return {"messages": resp}
 
 
@@ -89,8 +90,6 @@ def generate():
     messages = item.get('messages',[])
     resp = []
     for message in messages:
-        # print(infer_model.state)
-        # print(infer_model.init_state)
         msg = infer_model.scene.add_message(message)
         msg = infer_model.generate(msg, state=infer_model.state)
         msg.save()
@@ -149,9 +148,8 @@ def train_token():
     item = request.json
     input_ids = item['input_ids']
     attention_mask = item.get('attention_mask',None)
-    batch = {
-        "input_ids": torch.tensor([input_ids],dtype=torch.long).to('cuda'),
-        "attention_mask": torch.tensor([attention_mask],dtype=torch.bfloat16).to('cuda')}
+    batch = { "input_ids": torch.tensor([input_ids],dtype=torch.long).to('cuda'),
+              "attention_mask": torch.tensor([attention_mask],dtype=torch.bfloat16).to('cuda')}
     m = model_engine.training_step(batch,model_engine=model_engine)
     loss = m.item()
     print("->", loss)
@@ -173,11 +171,12 @@ def train_org():
         for node in nodes[1:]:
             cache = cache + node
         train_data_set.append(cache)
+        print(cache)
     losses = []
     for train_data in tqdm(train_data_set):
         batch = {"input_ids": train_data.tensor.to('cuda'),
                  "attention_mask": None}
-        m = model_engine.training_step(batch, None,
+        m = model_engine.training_step(batch,
                                        model_engine=model_engine)
         loss = m.item()
         print("->", loss)

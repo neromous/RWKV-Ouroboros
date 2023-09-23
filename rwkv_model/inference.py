@@ -40,6 +40,13 @@ class Inference:
         gc.collect()
         return self
 
+    def set_init_state(self):
+        self.init_state = copy.deepcopy(self.state)
+        torch.cuda.empty_cache()
+        gc.collect()
+        return self
+    
+    
     def reset_state(self):
         self.state = copy.deepcopy(self.init_state)
         torch.cuda.empty_cache()
