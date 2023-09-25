@@ -11,9 +11,10 @@ import requests
 from tqdm import tqdm
 from models.page import Page
 import random
+data_path = "/home/neromous/Documents/blackfog/resources/train-results/oneline/save-200.pth"
+data_path = "/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth"
 
-model = RWKV("/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth",
-             lr_init=1.0e-5)
+model = RWKV(data_path,lr_init=2.0e-6)
 
 optimizer, lr_scheduler = model.configure_optimizers()
 
@@ -27,39 +28,71 @@ datasets = Page.from_org('./data/sft.org',shuffle=True)
 data = datasets[0]
 for x in datasets[1:]:
     data += x
-print(data)
 avg_loss = 5.0
 total_loss = 0
-i = 0
-
+step = 0
 while avg_loss > 0.5:
     for tokens in data.yield_token(2049):
-        i += 1
+        step += 1
         idx = tokens
         m = model_engine.training_step(idx)
         loss = m.item()
         total_loss += loss
-        avg_loss = total_loss / i
+        avg_loss = total_loss / step
         model_engine.backward(m)
         model_engine.step()
         print(f"\n[item-loss:{loss}  avg-loss:{avg_loss}]")
-        if i % 20 == 0:
-            out = [0 for x in range(0,2048)]
-            out[:512] = tokens[:512]
-            out = model_engine.inference(out)
+        if step % 20 == 0 or loss >= 2.0:
+            out = [x for x in tokens]
+            print(f"\n===question=={loss}===\n",Page.decode(out))
+            print("\nanswers->")
             res = ""
-            for m in range(out.size(0)):
-                row = out[m]
-                tt = model.sample_logits(row)
-                tts = Page.decode([tt])
-                if  '\ufffd' not in tts:
-                    res += tts
-            print("==tokens==",res)
+            all_tokens = [x for x in out]
+            token_ban = [0]
+            token_stop = [65530,65531,65532,65533,65534,65535]
+            token_coll = list(set(tokens))
+            out_last = 0
+            out_str = ''
+            occurrence = {}
+            alpha_presence = 0.45
+            alpha_frequency = 0.45
+            alpha_decay = 0.996
+            for i in range(256):
+                #get logits
+                output = model_engine.inference(all_tokens[-1024:])
+                logits = output[-1]
+                for n in token_ban:
+                    logits[n] = -float('inf')
+                # for n in token_coll:
+                #     logits[n] *= 1.5
+                for n in occurrence:
+                   logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+                # get token
+                token = model.sample_logits(logits)
+                if token in token_stop:
+                    break
+                all_tokens += [token]
+                for xxx in occurrence:
+                   occurrence[xxx] *= alpha_decay
+                if token not in occurrence:
+                   occurrence[token] = 1
+                else:
+                   occurrence[token] += 1
 
-        if  i % 100 == 0 :
+                tmp = Page.decode(all_tokens[2049 + out_last:])
+
+                if  '\ufffd' not in tmp:
+                    print(tmp, end="", flush=True)
+                    out_str += tmp
+                    out_last = i + 1
+            gc.collect()
+            torch.cuda.empty_cache()
+
+
+        if  step % 100 == 0 :
             print("==save===")
             model_engine.to(torch.device('cpu'))
-            torch.save(model_engine.module.state_dict(), f"save-{i}.pth")
+            torch.save(model_engine.module.state_dict(), f"/home/neromous/Documents/blackfog/resources/train-results/oneline/save-{step}.pth")
             model_engine.to(torch.device('cuda'))
 
     print("===load data===")
@@ -67,7 +100,7 @@ while avg_loss > 0.5:
     data = datasets[0]
     for x in datasets[1:]:
         data += x
-    print(data)
+
 
 
 # coll = Page.from_org('./data/sft.org')

@@ -2,24 +2,20 @@ import time
 from models import Model
 import copy
 import torch
-from models.page import Page
 
-class Page:
+class Page(Model):
     def __init__(self,form):
         text = form.get('text','')
         self.prefix = form.get("prefix", "")
         self.postfix = form.get("postfix", "")
         self.prefix_token = form.get("prefix_token", [])
         self.prefix_token = form.get("postfix_token", [])
-        
         if len(text) !=0:
             self.tokens = form.get('tokens', self.encode(self.prefix + text + self.postfix))
         else:
             self.tokens = form.get('tokens',[])
-        
 
 class Message(Model):
-
     def __init__(self, form):
         self.id = None
         self.role = form.get("role", "user")
@@ -49,7 +45,7 @@ class Message(Model):
             self.tokens = form.get('tokens', self.encode(self.prefix + self.text + self.postfix))
         else:
             self.tokens = form.get('tokens',[])
-        
+
     def to_tokens(self) -> list:
         text = self.prefix + self.text + self.postfix
         tokens = self.encode(text)
@@ -64,7 +60,6 @@ class Message(Model):
             tokens = token_prefix + tokens
         _tokens = []
         return tokens
-
 
     def load_file(self,path):
         with open(path, 'r',encoding='utf-8') as f:

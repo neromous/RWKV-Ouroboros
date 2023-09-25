@@ -408,14 +408,14 @@ class RWKV(nn.Module):
                  vocab_size = 65536,
                  ctx_len = 2048,
                  grad_cp = 1,
-                 weight_decay = 0.01,
+                 weight_decay = 0,
                  pre_ffn = 0,
                  lr_init = 1.0e-5,
                  adam_eps = 1.0e-7,
                  beta1=0.9,
                  beta2=0.999,
                  warmup_steps = 8,
-                 adamw_mode=True):
+                 adamw_mode=False):
         super().__init__()
         self.adamw_mode =adamw_mode
         self.n_layer = n_layer
@@ -493,18 +493,18 @@ class RWKV(nn.Module):
         optim_groups = [
             {
                 "params": [param_dict[n] for n in lr_1x],
-                "weight_decay": 0.01,
+                "weight_decay": 0.0,
                 "lr": 1.0 * lr_init
             },
             {
             "params": [param_dict[n] for n in lr_2x],
-                "weight_decay": 0.01,
-                "lr": 1.0 * lr_init
+                "weight_decay": 0.0,
+                "lr": 2.0 * lr_init
             },
             {
                 "params": [param_dict[n] for n in lr_3x],
-                "weight_decay": 0.01,
-                "lr": 1.0 * lr_init
+                "weight_decay": 0.00,
+                "lr": 3.0 * lr_init
             },
         ]
 
@@ -561,9 +561,9 @@ class RWKV(nn.Module):
         logits = self(idx)
         # 计算loss
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction="none")
-        if torch.any(torch.isnan(loss)):
-            print("\n=====error=======\n")
-            loss = torch.where(torch.isnan(loss), torch.full_like(loss,1.0e-7), loss)
+        # if torch.any(torch.isnan(loss)):
+        #     print("\n=====error=======\n")
+        #     loss = torch.where(torch.isnan(loss), torch.full_like(loss,1.0e-7), loss)
 
         # loss_raw = loss
         loss = torch.sum(loss * mask) / sum_mask
@@ -572,8 +572,9 @@ class RWKV(nn.Module):
 
     def inference(self, tokens):
         with torch.no_grad():
-            idx = [0 for x in range(0,self.ctx_len)]
-            idx[:len(tokens)] =  tokens
+            idx = [x for x in tokens]
+            #idx = [0 for x in range(0,self.ctx_len)]
+            #idx[:len(tokens)] =  tokens
             idx = torch.tensor([idx],dtype=torch.long).to('cuda')
             # -------- 计算 idx 到logits --------
             B, T = idx.size()
@@ -591,9 +592,10 @@ class RWKV(nn.Module):
             logits = self.head(x)
             output = logits.view(-1, logits.size(-1))
         # -------- 计算loss  --------
-        gc.collect()
-        torch.cuda.empty_cache()
+        #gc.collect()
+        #torch.cuda.empty_cache()
         return output
+
 
     @classmethod
     def sample_logits(cls, logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):

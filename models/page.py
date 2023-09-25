@@ -42,7 +42,6 @@ class Base:
         return tokenizer.decode(tokens)
 
 
-
 class Page(Base):
     _padding = 0
     def __init__(self,
@@ -144,6 +143,25 @@ class Page(Base):
         return m
 
     @classmethod
+    def from_org_text(cls,text,shuffle=False):
+        text = text.strip()
+        if not text.startswith("*") and  not text.startswith("#+"):
+            text = "*" + " " + text
+        data = loads(text)
+        root = data[0]
+        results = []
+        for level1 in root.children:
+            m = cls.node2page(level1.children[0])
+            for level2 in level1.children[1:]:
+                m =  m + cls.node2page(level2)
+            results.append(m)
+        if shuffle:
+            cache = results[1:]
+            random.shuffle(cache)
+            results = results[:1] + cache
+        return results
+
+    @classmethod
     def from_org(cls,path,shuffle=False):
         data = load(path)
         root = data[0]
@@ -154,7 +172,9 @@ class Page(Base):
                 m =  m + cls.node2page(level2)
             results.append(m)
         if shuffle:
-            random.shuffle(results)
+            cache = results[1:]
+            random.shuffle(cache)
+            results = results[:1] + cache
         return results
 
     @classmethod
