@@ -82,14 +82,6 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
                             device=w.device,
                             memory_format=torch.contiguous_format,
                             dtype=torch.bfloat16)
-            # print(f"==B:{B} T:{T} C:{C}==", )
-            # #print("===dtype in wkv forward=B=", B.dtype)
-            # #print("===dtype in wkv forward=T=", T.dtype)
-            # #print("===dtype in wkv forward=C=", C.dtype)
-            # print("===dtype in wkv forward=u=", u.dtype)
-            # print("===dtype in wkv forward=k=", k.dtype)
-            # print("===dtype in wkv forward=k=", v.dtype)
-            # print("===dtype in wkv forward=w=", w.dtype)
             wkv_cuda.forward(B, T, C, w, u, k, v, y)
             ctx.save_for_backward(w, u, k, v, y)
             return y
@@ -454,8 +446,8 @@ class RWKV(nn.Module):
             self.dtype=torch.float32
         elif dtype == "fp16":
             self.dtype=torch.float16
-        else:
-            raise Exception()
+        elif dtype== "bf16":
+            self.dtype = torch.bfloat16
         self.adamw_mode =adamw_mode
         self.n_layer = n_layer
         self.n_embd = n_embd
@@ -581,7 +573,6 @@ class RWKV(nn.Module):
                 },
             ]
 
-
             optimizer = DeepSpeedCPUAdam(optim_groups,
                                          lr=lr_init,
                                          betas=(self.beta1, self.beta2),
@@ -599,8 +590,6 @@ class RWKV(nn.Module):
                 warmup_num_steps=self.warmup_steps,
                 warmup_type='linear')
         return optimizer, lr_scheduler
-
-
 
     def forward(self, idx):
         # -------- 计算 idx 到logits --------
@@ -654,15 +643,10 @@ class RWKV(nn.Module):
             # -------- 计算 idx 到logits --------
             B, T = idx.size()
             assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
-
             x = self.emb(idx)
             x_emb = x
-
             for block in self.blocks:
-                if self.grad_cp == 1:
-                    x = deepspeed.checkpointing.checkpoint(block, x)
-                else:
-                    x = block(x)
+                x = block(x)
             x = self.ln_out(x)
             logits = self.head(x)
             output = logits.view(-1, logits.size(-1))
@@ -705,22 +689,3 @@ class RWKV(nn.Module):
                 probs = probs ** (1.0 / temperature)
             out = torch.multinomial(probs, num_samples=1)[0]
             return int(out)
-
-
-
-
-
-    # def training_loss(self):
-
-    #     #  注入数据
-
-    #     if sum_mask == mask.shape[0]:
-    #         loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
-    #                                targets.view(-1))
-    #         # print('rank', self.global_rank, 'loss', loss.item())
-    #     else:
-
-    #     if torch.any(torch.isnan(loss)):
-    #         print("\n=====error=======\n")
-    #         loss = torch.where(torch.isnan(loss), torch.full_like(loss,0), loss)
-    #     return loss

@@ -1,7 +1,7 @@
 import os
 os.environ['RWKV_JIT_ON'] = "1"
 os.environ['RWKV_TORCH_COMPILE'] = "0"
-os.environ['RWKV_FLOAT_MODE'] = "fp32"
+os.environ['RWKV_FLOAT_MODE'] = "32"
 # my projects
 from rwkv_model.model_origin import RWKV
 from bottle import route, run, template, request
@@ -17,14 +17,17 @@ import random
 local_path = "/home/neromous/Documents/blackfog"
 
 origin_model = RWKV(f"{local_path}/resources/train-results/oneline/save-200.pth",
-             lr_init=2.0e-6)
+                    lr_init=2.0e-6,
+                    dtype="fp32")
 
 optimizer, lr_scheduler = origin_model.configure_optimizers()
 
 model, optimizer, _, _ = deepspeed.initialize(model=origin_model,
                                               optimizer=optimizer,
                                               lr_scheduler=lr_scheduler,
-                                              config="ds_config_origin.config")
+                                              config="fp32_ds_config.config")
+
+
 
 
 @route('/train/by-org', method='POST')
