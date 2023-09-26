@@ -50,7 +50,8 @@ from torch.utils.cpp_extension import load
 if os.environ["RWKV_FLOAT_MODE"] == "bf16":
     wkv_cuda = load(
         name=f"wkv_{T_MAX}_bf16",
-        sources=[f"{local_path}/cuda_origin/wkv_op_bf16.cpp", f"{local_path}/cuda_origin/wkv_cuda_bf16.cu"],
+        sources=[f"cuda_origin/wkv_op_bf16.cpp",
+                 f"cuda_origin/wkv_cuda_bf16.cu"],
         verbose=True,
         extra_cuda_cflags=[
             "-t 4",
@@ -77,7 +78,18 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
             u = u.contiguous()
             k = k.contiguous()
             v = v.contiguous()
-            y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
+            y = torch.empty((B, T, C),
+                            device=w.device,
+                            memory_format=torch.contiguous_format,
+                            dtype=torch.bfloat16)
+            # print(f"==B:{B} T:{T} C:{C}==", )
+            # #print("===dtype in wkv forward=B=", B.dtype)
+            # #print("===dtype in wkv forward=T=", T.dtype)
+            # #print("===dtype in wkv forward=C=", C.dtype)
+            # print("===dtype in wkv forward=u=", u.dtype)
+            # print("===dtype in wkv forward=k=", k.dtype)
+            # print("===dtype in wkv forward=k=", v.dtype)
+            # print("===dtype in wkv forward=w=", w.dtype)
             wkv_cuda.forward(B, T, C, w, u, k, v, y)
             ctx.save_for_backward(w, u, k, v, y)
             return y
@@ -90,11 +102,25 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
             assert T <= T_MAX
             assert B * C % min(C, 32) == 0
             w, u, k, v, y = ctx.saved_tensors
-            gw = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gu = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gk = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gv = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.contiguous(), gw, gu, gk, gv)
+            gw = torch.empty((B, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gu = torch.empty((B, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gk = torch.empty((B, T, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gv = torch.empty((B, T, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            wkv_cuda.backward(B, T, C, w, u, k, v, y,
+                              gy.contiguous(),
+                              gw, gu, gk, gv)
             gw = torch.sum(gw, dim=0)
             gu = torch.sum(gu, dim=0)
             return (None, None, None, gw, gu, gk, gv)
@@ -242,7 +268,13 @@ class RWKV_TimeMix(MyModule):
         def forward(self, x):
             B, T, C = x.size()  # x = (Batch,Time,Channel)
             sr, k, v = self.jit_func(x)
-            rwkv = sr * RUN_CUDA(B, T, self.args.dim_att, self.time_decay, self.time_first, k, v)
+            rwkv = sr * RUN_CUDA(B,
+                                 T,
+                                 self.args.dim_att,
+                                 self.time_decay,
+                                 self.time_first,
+                                 k,
+                                 v)
             return self.output(rwkv)
 
     if "a" in os.environ["RWKV_MY_TESTING"]:
@@ -415,8 +447,15 @@ class RWKV(nn.Module):
                  beta1=0.9,
                  beta2=0.999,
                  warmup_steps = 8,
-                 adamw_mode=False):
+                 adamw_mode=False,
+                 dtype="fp16"):
         super().__init__()
+        if dtype == "fp32":
+            self.dtype=torch.float32
+        elif dtype == "fp16":
+            self.dtype=torch.float16
+        else:
+            raise Exception()
         self.adamw_mode =adamw_mode
         self.n_layer = n_layer
         self.n_embd = n_embd
@@ -462,7 +501,8 @@ class RWKV(nn.Module):
         self.ln_out = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.vocab_size, bias=False)
         model_weights = torch.load(self.load_model, map_location='cpu')
-        model_weights = {k:v.half() for k,v in model_weights.items()}
+        model_weights = {k:v.to(dtype=self.dtype) for k,v
+                         in model_weights.items()}
         self.load_state_dict(model_weights)
         del model_weights
         gc.collect()
@@ -490,32 +530,66 @@ class RWKV(nn.Module):
         # print('2x', lr_2x)
         # print('3x', lr_3x)
         param_dict = {n: p for n, p in self.named_parameters()}
-        optim_groups = [
-            {
-                "params": [param_dict[n] for n in lr_1x],
-                "weight_decay": 0.0,
-                "lr": 1.0 * lr_init
-            },
-            {
-            "params": [param_dict[n] for n in lr_2x],
-                "weight_decay": 0.0,
-                "lr": 2.0 * lr_init
-            },
-            {
-                "params": [param_dict[n] for n in lr_3x],
-                "weight_decay": 0.00,
-                "lr": 3.0 * lr_init
-            },
-        ]
 
-        optimizer = DeepSpeedCPUAdam(optim_groups,
-                                     lr=lr_init,
-                                     betas=(self.beta1, self.beta2),
-                                     eps=self.adam_eps,
-                                     bias_correction=True,
-                                     adamw_mode=self.adamw_mode,
-                                     weight_decay=self.weight_decay,
-                                     amsgrad=False)
+        if self.dtype == torch.float32:
+            optim_groups = [
+                {
+                    "fp32_optimizer": True,
+
+                    "params": [param_dict[n] for n in lr_1x],
+                    "weight_decay": 0.0,
+                    "lr": 1.0 * lr_init
+                },
+                {
+                    "fp32_optimizer": True,
+                    "params": [param_dict[n] for n in lr_2x],
+                    "weight_decay": 0.0,
+                    "lr": 2.0 * lr_init
+                },
+                {
+                    "fp32_optimizer": True,
+                    "params": [param_dict[n] for n in lr_3x],
+                    "weight_decay": 0.00,
+                    "lr": 3.0 * lr_init
+                },
+            ]
+            optimizer = DeepSpeedCPUAdam(optim_groups,
+                                         lr=lr_init,
+                                         betas=(self.beta1, self.beta2),
+                                         eps=self.adam_eps,
+                                         bias_correction=True,
+                                         adamw_mode=self.adamw_mode,
+                                         weight_decay=self.weight_decay,
+                                         amsgrad=False,
+                                         fp32_optimizer_states=True)
+        else:
+            optim_groups = [
+                {
+                    "params": [param_dict[n] for n in lr_1x],
+                    "weight_decay": 0.0,
+                    "lr": 1.0 * lr_init
+                },
+                {
+                    "params": [param_dict[n] for n in lr_2x],
+                    "weight_decay": 0.0,
+                    "lr": 2.0 * lr_init
+                },
+                {
+                    "params": [param_dict[n] for n in lr_3x],
+                    "weight_decay": 0.00,
+                    "lr": 3.0 * lr_init
+                },
+            ]
+
+
+            optimizer = DeepSpeedCPUAdam(optim_groups,
+                                         lr=lr_init,
+                                         betas=(self.beta1, self.beta2),
+                                         eps=self.adam_eps,
+                                         bias_correction=True,
+                                         adamw_mode=self.adamw_mode,
+                                         weight_decay=self.weight_decay,
+                                         amsgrad=False)
         lr_scheduler = None
         if self.warmup_steps > 0:
             lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
@@ -535,7 +609,7 @@ class RWKV(nn.Module):
 
         x = self.emb(idx)
         x_emb = x
-
+        print("===dtype in forward==", x.dtype)
         for block in self.blocks:
             if self.grad_cp == 1:
                 x = deepspeed.checkpointing.checkpoint(block, x)
@@ -554,13 +628,14 @@ class RWKV(nn.Module):
             mask = [int(x!=0) for x in targets]
         idx = torch.tensor([idx],dtype=torch.long).to('cuda')
         targets = torch.tensor([targets],dtype=torch.long).to('cuda')
-        mask = torch.tensor([mask],dtype=torch.float16).to('cuda')
+        mask = torch.tensor([mask],dtype=torch.float32).to('cuda')
         mask = mask.view(-1)
         sum_mask = torch.sum(mask).item()
         # 前向 获得ligts
         logits = self(idx)
         # 计算loss
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction="none")
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                               targets.view(-1), reduction="none")
         # if torch.any(torch.isnan(loss)):
         #     print("\n=====error=======\n")
         #     loss = torch.where(torch.isnan(loss), torch.full_like(loss,1.0e-7), loss)
@@ -598,7 +673,9 @@ class RWKV(nn.Module):
 
 
     @classmethod
-    def sample_logits(cls, logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
+    def sample_logits(cls, logits:torch.tensor,
+                      temperature=0.1,
+                      top_p=0.1, top_k=0):
         probs = F.softmax(logits.float(), dim=-1)
         top_k = int(top_k)
         if probs.device == torch.device('cpu'):

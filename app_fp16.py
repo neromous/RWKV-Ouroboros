@@ -73,6 +73,8 @@ def train_sft():
 def inference_by_org():
     global model
     item = request.json
+    temperautre = item.get('temperature', 0.1)
+    top_p = item.get('top_p', 0.1)
     text = item['org']
     todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
     if not "".startswith("#+TODO"):
@@ -81,7 +83,10 @@ def inference_by_org():
     item_id = max(coll.keys())
     item = coll[item_id]
     print(item)
-    output = inference(model,item.tokens)
+    output = inference(model,
+                       item.tokens,
+                       temperature = temperautre,
+                       top_p = temperautre)
     return {"response": output}
 
 @route('/train/save-weight', method='POST')
@@ -89,10 +94,10 @@ def save_weight():
     global model
     item = request.json
     save_name = item.get('save_path','save.pth')
-    engine.to(torch.device('cpu'))
+    model.to(torch.device('cpu'))
     torch.save(model.module.state_dict(),
                f"{local_path}/resources/train-results/oneline/{save_name}")
-    engine.to(torch.device('cuda'))
+    model.to(torch.device('cuda'))
     return {"response": "model save"}
 
 

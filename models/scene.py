@@ -76,4 +76,5 @@ class Scene(Model):
 
     def to_tensor(self) -> torch.tensor:
         tokens = self.to_tokens()
+
         return torch.tensor([tokens], dtype=torch.long)
