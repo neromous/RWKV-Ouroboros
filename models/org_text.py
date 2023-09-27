@@ -127,7 +127,6 @@ def inference(model,
     # remove end 
     while token[-1] in [0,65535,261,11]:
         token = token[:-1]
-    print("==token=",token)
     token = token[token_count - ctx:]
     all_tokens = [x for x in token]
     length = len(all_tokens)
@@ -137,7 +136,6 @@ def inference(model,
     alpha_presence = 0.45
     alpha_frequency = 0.45
     alpha_decay = 0.996
-    print("==all==",all_tokens)
     for i in range(token_count):
         #get logits
         output = model.inference(all_tokens[-ctx:])
@@ -167,6 +165,114 @@ def inference(model,
             out_str += tmp
             out_last = i + 1
     return out_str
+
+
+
+
+def inference_with_state(model,
+                         tokens,
+                         temperature = 0.1,
+                         top_p = 0.1,
+                         top_k =  0,
+                         chunk_len=128,
+                         alpha_frequency =  0.45,
+                         alpha_presence =  0.45,
+                         alpha_decay =  0.996,
+                         token_ban =  [0,46],
+                         token_stop = [65535],
+                         token_count =  256,
+                         callback=True,
+                         state= None):
+    while tokens[-1] in [0,65535,261,11]:
+        tokens = tokens[:-1]
+
+    #print("======",tokens)
+    # remove end
+    out_str = ""
+    init_state = None
+    occurrence = {}
+    alpha_presence = 0.45
+    alpha_frequency = 0.45
+    alpha_decay = 0.996
+
+    for token in tqdm(tokens):
+        init_out, init_state = model.inference_with_state(token, init_state)
+    #print("==init_state==",init_state)
+    all_tokens = []
+    out_last = 0
+    logits, state = init_out, init_state.clone()
+    for i in range(token_count):
+        for n in token_ban:
+            logits[n] = -float('inf')
+        for n in occurrence:
+           logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+
+        token = model.sample_logits(logits,
+                                    temperature=temperature,
+                                    top_p=top_p)
+        all_tokens += [token]
+        for xxx in occurrence:
+           occurrence[xxx] *= alpha_decay
+        if token not in occurrence:
+           occurrence[token] = 1
+        else:
+           occurrence[token] += 1
+
+        #print("==token==",token)
+        tmp = tokenizer.decode(all_tokens[out_last:])
+        if '\ufffd' not in tmp: # only print when we have a valid utf-8 string
+            print(tmp, end="", flush=True)
+            out_str += tmp
+            out_last = i + 1
+        logits, state = model.inference_with_state(token, state)
+        #print("==state==",state)
+    return out_str,state
+
+
+
+
+    # print("==token=",token)
+    # token = token[token_count - ctx:]
+    # all_tokens = [x for x in token]
+    # length = len(all_tokens)
+    # out_last = 0
+    # out_str = ''
+    # occurrence = {}
+    # alpha_presence = 0.45
+    # alpha_frequency = 0.45
+    # alpha_decay = 0.996
+    # print("==all==",all_tokens)
+
+
+    # for i in range(token_count):
+    #     #get logits
+    #     output,state = model.inference_with_state(all_tokens[-1],state)
+    #     logits = output[-1]
+    #     for n in token_ban:
+    #         logits[n] = -float('inf')
+    #     for n in occurrence:
+    #        logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+    #     token = model.sample_logits(logits,
+    #                                 temperature=temperature,
+    #                                 top_p=top_p,
+    #                                 top_k=top_k)
+    #     if token in token_stop:
+    #         break
+    #     all_tokens += [token]
+    #     for xxx in occurrence:
+    #        occurrence[xxx] *= alpha_decay
+    #     if token not in occurrence:
+    #        occurrence[token] = 1
+    #     else:
+    #        occurrence[token] += 1
+
+    #     tmp = tokenizer.decode(all_tokens[length+out_last:])
+
+    #     if  '\ufffd' not in tmp:
+    #         print(tmp, end="", flush=True)
+    #         out_str += tmp
+    #         out_last = i + 1
+    # return out_str , state
 
 
 # class DocNode:

@@ -1,5 +1,5 @@
 import os
-os.environ['RWKV_JIT_ON'] = "1"
+os.environ['RWKV_JIT_ON'] = "0"
 os.environ['RWKV_TORCH_COMPILE'] = "0"
 os.environ['RWKV_FLOAT_MODE'] = "32"
 # my projects
@@ -11,10 +11,11 @@ import deepspeed
 import requests
 from tqdm import tqdm
 from models.page import Page
-from models.org_text import DataNode,file_to_node,text_to_node, tokenizer,inference
+from models.org_text import DataNode,file_to_node,text_to_node, tokenizer,inference,inference_with_state
 import random
 
 local_path = "/home/neromous/Documents/blackfog"
+
 
 origin_model = RWKV(f"{local_path}/resources/train-results/oneline/save-200.pth",
                     lr_init=2.0e-6,
@@ -26,8 +27,6 @@ model, optimizer, _, _ = deepspeed.initialize(model=origin_model,
                                               optimizer=optimizer,
                                               lr_scheduler=lr_scheduler,
                                               config="fp32_ds_config.config")
-
-
 
 
 @route('/train/by-org', method='POST')
@@ -91,6 +90,33 @@ def inference_by_org():
                        temperature = temperautre,
                        top_p = temperautre)
     return {"response": output}
+
+
+@route('/inference/by-inf', method='POST')
+def inference_by_inf():
+    global model
+    item = request.json
+    temperautre = item.get('temperature', 0.1)
+    top_p = item.get('top_p', 0.1)
+    text = item['org']
+    todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
+    if not "".startswith("#+TODO"):
+        text = todo +text
+    coll = text_to_node(text)
+    item_id = max(coll.keys())
+    item = coll[item_id]
+    print("==start===" )
+    res = []
+    state = None
+    text,state = inference_with_state(model,
+                                      [65530],
+                                      temperature=0.2,
+                                      top_p=0.2,
+                                      token_count=1,
+                                      state=None)
+
+    return {"response": text}
+
 
 @route('/train/save-weight', method='POST')
 def save_weight():

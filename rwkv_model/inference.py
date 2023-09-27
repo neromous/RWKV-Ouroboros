@@ -125,7 +125,7 @@ class Inference:
             while len(tokens) > 0:
                 #out, state = self.model.forward(tokens[0], state)
                 #tokens = tokens[1:]
-                out, state = self.model.forward(tokens[:message.chunk_len], state)
+                out, state = self.model.(tokens[:message.chunk_len], state)
                 tokens = tokens[message.chunk_len:]
             if self.init_state == None:
                 self.init_state = copy.deepcopy(state)
