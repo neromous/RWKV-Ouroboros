@@ -19,7 +19,8 @@ local_path = "/home/neromous/Documents/blackfog"
 
 origin_model = RWKV(f"{local_path}/resources/train-results/oneline/save-200.pth",
                     lr_init=2.0e-6,
-                    dtype="fp32")
+                    dtype="fp32",
+                    grad_cp=1)
 
 optimizer, lr_scheduler = origin_model.configure_optimizers()
 
@@ -32,6 +33,8 @@ model, optimizer, _, _ = deepspeed.initialize(model=origin_model,
 @route('/train/by-org', method='POST')
 def train_by_org():
     global model
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
     text = item['org']
     todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
@@ -46,11 +49,15 @@ def train_by_org():
             losses.append(loss)
             model.backward(m)
             model.step()
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"loss": losses}
 
 @route('/train/sft', method='POST')
 def train_sft():
     global model
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
     coll = file_to_node('./data/sft.org')
     losses = []
@@ -68,12 +75,16 @@ def train_sft():
             losses.append(loss)
             model.backward(m)
             model.step()
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"loss": losses}
 
 
 @route('/inference/by-org', method='POST')
 def inference_by_org():
     global model
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
     temperautre = item.get('temperature', 0.1)
     top_p = item.get('top_p', 0.1)
@@ -87,14 +98,21 @@ def inference_by_org():
     print(item)
     output = inference(model,
                        item.tokens,
+                       token_ban=[0],
+                       token_stop=[65535],
+                       token_count=256,
                        temperature = temperautre,
                        top_p = temperautre)
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"response": output}
 
 
 @route('/inference/by-inf', method='POST')
 def inference_by_inf():
     global model
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
     temperautre = item.get('temperature', 0.1)
     top_p = item.get('top_p', 0.1)
@@ -110,23 +128,56 @@ def inference_by_inf():
     state = None
     text,state = inference_with_state(model,
                                       [65530],
-                                      temperature=0.2,
-                                      top_p=0.2,
+                                      temperature=0.1,
+                                      top_p=0.1,
                                       token_count=1,
                                       state=None)
+    gc.collect()
+    torch.cuda.empty_cache()
 
     return {"response": text}
+
+@route('/inference/by-token', method='POST')
+def inference_by_token():
+    global model
+    gc.collect()
+    torch.cuda.empty_cache()
+    item = request.json
+    temperautre = item.get('temperature', 0.1)
+    top_p = item.get('top_p', 0.1)
+    text = item['org']
+
+    output = inference(model,
+                       item.tokens,
+                       token_ban=[0],
+                       token_stop=[65535],
+                       token_count=256,
+                       temperature = temperautre,
+                       top_p = temperautre)
+    gc.collect()
+    torch.cuda.empty_cache()
+    return {"response": text}
+
 
 
 @route('/train/save-weight', method='POST')
 def save_weight():
     global model
-    item = request.json
-    save_name = item.get('save_path','save.pth')
-    model.to(torch.device('cpu'))
-    torch.save(model.module.state_dict(),
-               f"{local_path}/resources/train-results/oneline/{save_name}")
-    model.to(torch.device('cuda'))
+    gc.collect()
+    torch.cuda.empty_cache()
+    model.save_checkpoint(save_dir="./save.pth")
+    # item = request.json
+    # save_name = item.get('save_path','save.pth')
+    # model.to(torch.device('cpu'))
+    # gc.collect()
+    # torch.cuda.empty_cache()
+    # torch.save(model.module.state_dict(),
+    #            f"{local_path}/resources/train-results/oneline/{save_name}")
+    # gc.collect()
+    # torch.cuda.empty_cache()
+    # model.to(torch.device('cuda'))
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"response": "model save"}
 
 

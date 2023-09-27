@@ -524,7 +524,7 @@ class RWKV(nn.Module):
                  beta2=0.999,
                  warmup_steps = 8,
                  adamw_mode=False,
-                 dtype="fp16"):
+                 dtype="fp32"):
         super().__init__()
         if dtype == "fp32":
             self.dtype=torch.float32
@@ -748,16 +748,21 @@ class RWKV(nn.Module):
             B, T = idx.size()
             assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
             x = self.emb(idx)
+
             x_emb = x
             for block in self.blocks:
                 x = block(x)
+
             x = self.ln_out(x)
-            logits = self.head(x)
-            output = logits.view(-1, logits.size(-1))
+
+            x = self.head(x)
+
+            x = x.view(-1, x.size(-1))
+
             # -------- 计算loss  --------
             #gc.collect()
             #torch.cuda.empty_cache()
-            return output
+            return x
 
     def inference_with_state(self, token, state=None):
         with torch.no_grad():
@@ -773,27 +778,15 @@ class RWKV(nn.Module):
             #B, T = idx.size()
             #assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
             x = self.emb(idx)
-            print(f"embd-> x:{x} \n shape:{x.shape} max:{x.max()}, max_in:{torch.argmax(x)} max:{x.min()}, max_in:{torch.argmin(x)} ")
+
             for block in self.blocks:
                 x,state = block.nograd_forward(x,state)
-                if block.layer_id == 0:
-                    print(f"layer 0-> x:{x} \n shape:{x.shape} max:{x.max()}, max_in:{torch.argmax(x)} max:{x.min()}, max_in:{torch.argmin(x)} ")
-            print(f"layer last-> x:{x} shape:{x.shape} max:{x.max()}, max_in:{torch.argmax(x)} max:{x.min()}, max_in:{torch.argmin(x)} ")
-
 
             x = self.ln_out(x)
-            print(f"ln-> x:{x} shape:{x.shape} max:{x.max()}, max_in:{torch.argmax(x)} max:{x.min()}, max_in:{torch.argmin(x)} ")
 
+            x = self.head.weight @ x
 
-            logits = self.head(x)
-            print(f"head-> x:{x} shape:{x.shape} max:{x.max()}, max_in:{torch.argmax(x)} max:{x.min()}, max_in:{torch.argmin(x)} ")
-
-
-            # output = logits.view(-1, logits.size(-1))
-            #output = logits.squeeze()
-            #print("===output shape===", output.shape)
-            #print("===output===", output)
-            return logits.float() , state
+            return x.float() , state
 
     @classmethod
     def sample_logits(cls,
