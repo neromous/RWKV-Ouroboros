@@ -4,36 +4,24 @@
 import functools
 import sys
 import os, math, gc, importlib
+from utils import log, load_config
+config = load_config()
 import torch
-
-# torch._C._jit_set_profiling_executor(True)
-# torch._C._jit_set_profiling_mode(True)
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint as torch_checkpoint
 
 import numpy as np
-# import pytorch_lightning as pl
-# from pytorch_lightning.utilities import rank_zero_info, rank_zero_only
-# from pytorch_lightning.strategies import DeepSpeedStrategy
 import time
 import types
 import deepspeed
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
-# from deepspeed.runtime.fp16.onebit.zoadam import ZeroOneAdam
 
-try:
-    print("RWKV_MY_TESTING", os.environ["RWKV_MY_TESTING"])
-except:
-    os.environ["RWKV_MY_TESTING"] = ""
 
-LORA_CONFIG = {
-    "r": 0,
-    "alpha": 0,
-    "dropout": 0,
-    "parts": {"att", "ln", "time"},
-    "layers":None,
-}
+os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
+
+LORA_CONFIG = config['lora_config']
+LORA_CONFIG['parts'] =  set(LORA_CONFIG['parts'])
 
 def __nop(ob):
     return ob
@@ -104,7 +92,7 @@ class BlockStateList:
 # CUDA Kernel
 ########################################################################################################
 
-T_MAX = int(os.environ["RWKV_T_MAX"])  # TAKES LOTS OF VRAM!
+T_MAX =  int(os.environ["RWKV_T_MAX"])
 
 # it's possible to go beyond CUDA limitations if you slice the ctx and pass the hidden state in each slice
 
@@ -507,7 +495,7 @@ class RWKV(nn.Module):
                  devices =  1,
                  precision = "bf16",
                  accumulate_grad_batches = 1,
-                 strategy = "deepspeed_stage_2_offload",
+                 strategy = "",
                  lora = False,
                  # lora_r = 16,
                  # lora_alpha = 32,
@@ -598,7 +586,7 @@ class RWKV(nn.Module):
         torch.cuda.empty_cache()
 
 
-    def configure_optimizers(self):
+    def get_optimizers(self):
         lr_init= self.lr_init
         lr_1x = set()
         lr_2x = set()
@@ -722,10 +710,15 @@ class RWKV(nn.Module):
         return x,new_states.shift_states, new_states.wkv_states
 
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch:dict, **kwargs):
         args = self.args
-
-        idx, targets, *others = batch
+        seq = batch['input_ids']
+        masks = batch.get('attention_mask',None)
+        idx = seq[:-1]
+        targets = seq[1:]
+        idx = torch.tensor([idx]).cuda()
+        targets = torch.tensor([targets]).cuda()
+        # idx, targets, *others = batch
         B, T = idx.shape
         C = args.n_embd
 

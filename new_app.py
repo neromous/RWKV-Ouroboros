@@ -1,70 +1,48 @@
 import os
-from utils import log, load_config
+os.environ['RWKV_JIT_ON'] = "1"
+os.environ['RWKV_TORCH_COMPILE'] = "0"
+
+# my projects
+from rwkv_model.model import RWKV
 import torch
 import gc
 import deepspeed
-import json
 from bottle import route, run, template, request
-config = load_config()
-#===============pico 配置项=================
-os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
-os.environ['RWKV_FLOAT_MODE'] = config['environ']['RWKV_FLOAT_MODE']
-
-if config['infctx_on']:
-    if config['infctx_type'] == "wani-boat":
-        ctx_parts =  config['trainer']['ctx_parts']
-        ctx_len = config['model']['ctx_len']
-        os.environ['RWKV_PARTS'] = str(ctx_parts)
-        os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE'] #开启后编译WKV_STATE的cuda kernal
-        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
-        ds_config =  "./offload_ds_config.config"
-        from rwkv_model.model_state import RWKV
-    elif config['infctx_type'] == "pico":
-        os.environ['RWKV_TORCH_COMPILE'] = config['environ']['RWKV_TORCH_COMPILE']
-        from rwkv_model.model import RWKV
-        ds_config =  "./ds_config.config"
-else:
-    from rwkv_model.model_origin import RWKV
-    ds_config =  "./fp32_ds_config.config"
-
-
-from rwkv_model.model_infer import RWKV_RNN
+import json
 from models.scene import Scene
 from models.page import Page
 from utils import save_data
-from inference.core import InferenceWithState
+from rwkv_model.inference import Inference
 import copy
 from tqdm import tqdm
 
-model = RWKV(load_model=config['model_path'],
-             n_layer= config['model']['n_layer'],
-             n_embd= config['model']['n_embd'],
-             vocab_size = config['model']['vocab_size'],
-             grad_cp = config['trainer']['grad_cp'],
-             lora = config['lora'],
+model = RWKV(load_model="/home/neromous/Documents/blackfog/resources/train-results/3b/rwkv-4.pth",
+             #n_embd=2560,
+             #n_layer=32,
+             #vocab_size=65536,
              lr_init=1.0e-4,
              lr_final=1.0e-6,
-             dtype =  config['environ']['RWKV_FLOAT_MODE'],
-             warmup_steps=config['trainer']['warmup_steps'])
+             warmup_steps=4)
 
 optimizer, lr_scheduler = model.get_optimizers()
 
 model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      optimizer=optimizer,
                                                      lr_scheduler=lr_scheduler,
-                                                     config=ds_config)
+                                                     config="ds_config.config")
 
-infer_model = InferenceWithState(model_engine)
-
+infer_model = Inference(model_name="./save.pth")
 
 
 @route('/inference/load-model', method='POST')
 def load_model():
     global infer_model, model_engine
     item = request.json
+    in_cpu = item.get('in_cpu')
     infer_model.clean_model()
     gc.collect()
     torch.cuda.empty_cache()
+    infer_model.model_weights =  model_engine.module.state_dict()
     infer_model.load_model()
     return {"response": "model save"}
 
@@ -119,6 +97,23 @@ def generate():
     return {"messages": resp}
 
 
+@route('/train/weight-to-cpu', method='POST')
+def weight_to_cpu():
+    global model_engine
+    item = request.json
+    model_engine.to(torch.device('cpu'))
+    model_engine.zero_optimization.free_bf16_param_memory()
+    return {"response": "model save"}
+
+
+@route('/train/weight-to-cpu', method='POST')
+def weight_to_cuda():
+    global model_engine
+    item = request.json
+    model_engine.to(torch.device('cuda'))
+    return {"response": "model save"}
+
+
 @route('/train/save-weight', method='POST')
 def save_weight():
     global model_engine
@@ -127,6 +122,7 @@ def save_weight():
     torch.save(model_engine.module.state_dict(), "save.pth")
     model_engine.to(torch.device('cuda'))
     return {"response": "model save"}
+
 
 @route('/train/tx-data', method='POST')
 def train():
@@ -163,8 +159,8 @@ def train_token():
     return {"loss": loss}
 
 
-@route('/train/by-org-text', method='POST')
-def train_by_org_text():
+@route('/train/org', method='POST')
+def train_org():
     global model_engine
     item = request.json
     text = item['org']
@@ -216,38 +212,4 @@ def train_sft():
     return {"loss": losses}
 
 
-if config['debug'] :
-    print("===train test start==")
-    train_data = [x for x in range(0,4096)]
-    batch = {"input_ids": train_data,
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
-    model_engine.step()
-    print("===train test over==",loss)
-    infer_model.load_model()
-    messages = [{"text" :"你好啊", "role" : "text","over":False, "token_count":128 } ]
-    for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg)
-        print("==msg==",msg)
-
-    print("===train test start==")
-    train_data = [x for x in range(0,4096)]
-    batch = {"input_ids": train_data,
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
-    model_engine.step()
-    print("===train test over==",loss)
-    for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg)
-        print("==msg==",msg)
-
-
-
-if not config['debug']:
-    run(host='0.0.0.0', port=3000)
+run(host='0.0.0.0', port=3000)

@@ -521,6 +521,7 @@ class RWKV(nn.Module):
                  weight_decay = 0,
                  pre_ffn = 0,
                  lr_init = 1.0e-5,
+                 lr_final = 1.0e-6,
                  adam_eps = 1.0e-7,
                  beta1=0.9,
                  beta2=0.999,
@@ -615,7 +616,7 @@ class RWKV(nn.Module):
             torch.cuda.empty_cache()
 
 
-    def configure_optimizers(self):
+    def get_optimizers(self):
         lr_init= self.lr_init
         lr_1x = set()
         lr_2x = set()

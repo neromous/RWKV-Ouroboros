@@ -1,16 +1,32 @@
 {
-  "model_path": null,
+  "model_path": "/home/neromous/Documents/blackfog/resources/train-results/0.4b/rwkv-0.pth",
   "model_name": "",
-  "proj_dir": "",
+  "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
+  "debug" : true,
+  "infctx_on":true,
+  "infctx_type":"wani-boat",
   "model": {
-    "n_embd": 2560,
-    "n_layer": 32,
+    "n_embd": 1024,
+    "n_layer": 24,
     "vocab_size": 65536,
-    "ctx_len": 1024
+    "ctx_len": 2048
+  },
+  "lora":false,
+  "lora_config":{
+    "r": 0,
+    "alpha": 0,
+    "dropout": 0,
+    "parts": ["att", "ln", "time"],
+    "layers": null
   },
   "environ": {
     "RWKV_JIT_ON": "1",
-    "RWKV_FLOAT_MODE": "fp16"
+    "RWKV_T_MAX":  2048,
+    "RWKV_FLOAT_MODE": "bf16",
+    "RWKV_TORCH_COMPILE": "",
+    "RWKV_TORCH_RUN_MODE": "torch-complie",
+    "RWKV_MY_TESTING" : "",
+    "RWKV_STATE": "1"
   },
   "role": {
     "master": {
@@ -86,32 +102,11 @@
       ]
     }
   },
-  "tokenzier": {
-    "tokenizer_name": ""
-  },
   "trainer": {
-    "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/3b",
-    "wandb": "",
-    "weight_decay": 0,
-    "layerwise_lr": 0,
-    "random_seed": -1,
-
-    "epoch_steps": 100000,
-    "epoch_count": 500,
-    "epoch_begin": 20,
-    "epoch_save": 5,
-    "micro_bsz": 1,
-    "pre_ffn": 0,
-    "grad_cp": 1,
-    "my_pos_emb": 0,
-    "my_testing": "",
-    "num_nodes": 1,
-    "devices": 1,
-    "strategy": "deepspeed_stage_2_offload",
-    "gradient_accumulation_steps": 16,
-    "accumulate_grad_batches": 4,
-    "head_qk": 0
-  },
+    "warmup_steps" : 8,
+    "grad_cp" : 1,
+    "ctx_parts" : 16
+    },
   "inference": {
     "prompt_config": {
       "temperature": 0.1,
@@ -128,10 +123,7 @@
       "chunk_len": 128,
       "token_count": 256,
       "over": true
-    },
-    "service_config": {
-      "RUN_DEVICE": "cuda",
-      "FLOAT_MODE": "fp16"
     }
+
   }
 }

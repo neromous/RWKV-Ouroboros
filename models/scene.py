@@ -1,6 +1,6 @@
 import time
 import torch
-from models import Model
+from models.core import Model
 from models.message import Message
 
 class Scene(Model):

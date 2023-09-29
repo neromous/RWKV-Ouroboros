@@ -1,19 +1,7 @@
 import time
-from models import Model
+from models.core import Model
 import copy
 import torch
-
-class Page(Model):
-    def __init__(self,form):
-        text = form.get('text','')
-        self.prefix = form.get("prefix", "")
-        self.postfix = form.get("postfix", "")
-        self.prefix_token = form.get("prefix_token", [])
-        self.prefix_token = form.get("postfix_token", [])
-        if len(text) !=0:
-            self.tokens = form.get('tokens', self.encode(self.prefix + text + self.postfix))
-        else:
-            self.tokens = form.get('tokens',[])
 
 class Message(Model):
     def __init__(self, form):
