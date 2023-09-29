@@ -1,0 +1,129 @@
+{
+  "model_path": "/home/neromous/Documents/blackfog/resources/train-results/oneline/save-200.pth",
+  "model_name": "",
+  "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
+  "debug" : true,
+  "infctx_on": false,
+  "infctx_type":"wani-boat",
+  "model": {
+    "n_embd": 2560,
+    "n_layer": 32,
+    "vocab_size": 65536,
+    "ctx_len": 2048
+  },
+  "lora":false,
+  "lora_config":{
+    "r": 0,
+    "alpha": 0,
+    "dropout": 0,
+    "parts": ["att", "ln", "time"],
+    "layers": null
+  },
+  "environ": {
+    "RWKV_JIT_ON": "1",
+    "RWKV_T_MAX":  2048,
+    "RWKV_FLOAT_MODE": "fp32",
+    "RWKV_TORCH_COMPILE": "",
+    "RWKV_TORCH_RUN_MODE": "torch-complie",
+    "RWKV_MY_TESTING" : "",
+    "RWKV_STATE": "1"
+  },
+  "role": {
+    "master": {
+      "prefix": [
+        65530,
+        65532
+      ],
+      "postfix": [
+        65535,
+        261
+      ]
+    },
+    "other": {
+      "prefix": [],
+      "postfix": []
+    },
+
+    "system": {
+      "prefix": [
+        65530,
+        65531
+      ],
+      "postfix": [
+        65535,
+        261
+      ]
+    },
+    "user": {
+      "prefix": [
+        65530,
+        65532
+      ],
+      "postfix": [
+        65535,
+        261
+      ]
+    },
+    "think": {
+      "prefix": [
+        65530,
+        65533
+      ],
+      "postfix": [
+        65535,
+        261
+      ]
+    },
+    "robot": {
+      "prefix": [
+        65530,
+        65534
+      ],
+      "postfix": [
+        65535,
+        261
+      ]
+    },
+    "book": {
+      "prefix": [],
+      "postfix": [
+        261
+      ]
+    },
+    "claude": {
+      "prefix": [65530,65534],
+      "postfix": [65535,
+                  261]
+    },
+    "text": {
+      "prefix": [],
+      "postfix": [
+                261
+      ]
+    }
+  },
+  "trainer": {
+    "warmup_steps" : 8,
+    "grad_cp" : 1,
+    "ctx_parts" : 16
+    },
+  "inference": {
+    "prompt_config": {
+      "temperature": 0.1,
+      "top_p": 0.1,
+      "top_k": 0,
+      "alpha_frequency": 0.45,
+      "alpha_presence": 0.45,
+      "alpha_decay": 0.996,
+      "token_ban": [],
+      "token_stop": [
+        0,
+        65535
+      ],
+      "chunk_len": 128,
+      "token_count": 256,
+      "over": true
+    }
+
+  }
+}

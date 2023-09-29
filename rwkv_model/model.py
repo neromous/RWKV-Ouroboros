@@ -5,7 +5,8 @@
 import gc, math, os
 from random import randint
 from typing import List, Optional
-
+from utils import log, load_config
+config = load_config()
 import numpy as np
 import torch
 # torch._C._jit_set_profiling_executor(True)
@@ -42,9 +43,10 @@ def is_torch_version_above(required_version):
 IS_TORCH_2_1 = is_torch_version_above("2.0.9999")
 
 # Get the JIT / torch compile option flags from the environment
-RWKV_JIT_ON        = os.getenv("RWKV_JIT_ON", "1").lower() in ("1", "true", "yes")
-RWKV_TORCH_COMPILE = os.getenv("RWKV_TORCH_COMPILE", f"0").lower() in ("1", "true", "yes")
-RWKV_TORCH_RUN_MODE = None
+RWKV_JIT_ON = config['environ']['RWKV_JIT_ON']
+RWKV_TORCH_COMPILE  = config['environ']['RWKV_TORCH_COMPILE']
+RWKV_TORCH_RUN_MODE = config['environ']['RWKV_TORCH_RUN_MODE']
+
 
 # We enable JITMod*/Function when supporting torch.jit
 # We use TorchCompile* when supporting torch compile
@@ -427,7 +429,9 @@ class RWKV(nn.Module):
                  substep_logging: bool = False,
                  torch_set_float32_matmul_precision:str = 'high',
                  accumulate_grad_batches = 1,
-                 num_devices=1
+                 num_devices=1,
+                 lora = False,
+                 dtype="bf16"
                  ):
 
         # Lets save everything in one shot
@@ -765,8 +769,10 @@ class RWKV(nn.Module):
     #
     # Main compute_loss function, this is called by the trainer loop
     #
-    def compute_loss(self,batch, batch_idx, is_training_run: bool,model_engine=None):
+    def compute_loss(self,batch, is_training_run=True,model_engine=None):
         seq = batch['input_ids']
+        seq = torch.tensor([seq],dtype=torch.long).cuda()
+
         assert isinstance(seq, torch.Tensor) and seq.ndim == 2
         ori_seq_mask = batch['attention_mask']
 
@@ -1079,8 +1085,8 @@ class RWKV(nn.Module):
         return total_loss
 
     @TCompileBaseline
-    def training_step(self, batch, batch_idx,model_engine=None):
-        total_loss = self.compute_loss(batch, batch_idx, True,model_engine=model_engine)
+    def training_step(self, batch,is_training_run=True,model_engine=None):
+        total_loss = self.compute_loss(batch, is_training_run=is_training_run,model_engine=model_engine)
 
         #self.log('train/loss', total_loss, prog_bar=True)
         # If set - forces the above train/loss log line to always be on a new line

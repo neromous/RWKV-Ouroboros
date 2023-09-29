@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+save.pth/*
 # Distribution / packaging
 .Python
 data/*

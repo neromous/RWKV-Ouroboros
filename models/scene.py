@@ -1,6 +1,6 @@
 import time
 import torch
-from models import Model
+from models.core import Model
 from models.message import Message
 
 class Scene(Model):
@@ -61,6 +61,23 @@ class Scene(Model):
     def is_valid(cls, item:dict):
         return True
 
+    def yield_tokens(self, ctx_len=2048,window=512):
+        message_tokens = []
+        for message in self.messages:
+            message_tokens += message.to_tokens()
+        prefix_text_token = self.encode(self.prefix)
+        postfix_text_token = self.encode(self.postfix)
+        # 增加前缀后缀
+        tokens = prefix_text_token + message_tokens + postfix_text_token
+        # 增加special tokne
+        tokens = self.prefix_token + tokens + self.postfix_token
+        tokens = [x for x in tokens if self.is_valid_token(x)]
+        while len(tokens) > 0:
+            output = tokens[ctx:]
+            tokens = tokens[ctx-window:]
+            yield output
+
+
     def to_tokens(self) -> list:
         message_tokens = []
         for message in self.messages:
@@ -76,4 +93,5 @@ class Scene(Model):
 
     def to_tensor(self) -> torch.tensor:
         tokens = self.to_tokens()
+
         return torch.tensor([tokens], dtype=torch.long)

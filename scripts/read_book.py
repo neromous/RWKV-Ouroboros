@@ -1,20 +1,24 @@
 import requests
 from tqdm import tqdm
 
-with open('/mnt/database/Datasets/materials/bonsai/sample.txt','r', encoding='utf-8') as f:
+with open('/home/neromous/Downloads/color.txt','r', encoding='utf-8') as f:
     texts = f.read()
 
 coll = []
 
+
+
 while len(texts) > 0 :
-    text = texts[:4096]
-    texts = texts[3200:]
-    m = {"role":"think",
+    text = texts[:2048]
+    texts = texts[1920:]
+    m = {"role":"text",
          "text": text,
-         "prefix":"\n",
-         "postfix": "\n"
+         "prefix":"\n下面是《碟形世界的片段》 具体章节如下\n\n",
+         "postfix": ""
          }
     coll.append(m)
+
+
 
 for item in tqdm(coll):
     m = requests.post("http://0.0.0.0:3000/train/tx-data",

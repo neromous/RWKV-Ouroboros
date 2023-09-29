@@ -2,7 +2,7 @@ import torch
 from torch.nn import functional as F
 import numpy as np
 import gc
-from rwkv_model.model_run import RWKV_RNN
+from rwkv_model.model_infer import RWKV_RNN
 from models.message import Message
 from models.scene import Scene
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
@@ -11,7 +11,7 @@ from tqdm import tqdm
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 from utils import log, load_config
 config = load_config()
-
+import types
 
 def my_func(tmp):
     print(tmp, end="", flush=True)
@@ -21,6 +21,15 @@ class Inference:
                  model_name: str,
                  model_weights=None):
         self.model_weights = model_weights
+        model_keys = list(model_weights.keys())
+        # Lets compute the model various sizes, if they are not provided
+        max_block_id = 0
+        for x in model_keys:
+            if 'blocks.' in x:
+                block_id = int(x.split('.')[1])
+                max_block_id = max(max_block_id, block_id)
+        self.n_layer = max_block_id + 1
+        self.n_embd = model_weights['head.weight'].shape[1]
         self.model_name = model_name
         self.model = None
         self.scene = Scene.new({"title":"测试"})
@@ -30,7 +39,11 @@ class Inference:
     def load_model(self):
         torch.cuda.empty_cache()
         gc.collect()
-        self.model = RWKV_RNN(self.model_name,model_weights=self.model_weights,float_type="bf16")
+        args = types.SimpleNamespace()
+        args.n_layer= self.n_layer
+        args.n_embd = self.n_embd
+        self.model = RWKV_RNN(self.weights,
+                              args)
         return self
 
     def clean_model(self):
@@ -40,6 +53,13 @@ class Inference:
         gc.collect()
         return self
 
+    def set_init_state(self):
+        self.init_state = copy.deepcopy(self.state)
+        torch.cuda.empty_cache()
+        gc.collect()
+        return self
+    
+    
     def reset_state(self):
         self.state = copy.deepcopy(self.init_state)
         torch.cuda.empty_cache()
@@ -107,81 +127,57 @@ class Inference:
                  message:Message,
                  callback=my_func,
                  state = None):
+        tokens = message.tokens
+        token_count = message.token_count
+        temperature =  message.temperature
+        top_p = message.top_p
+        alpha_presence = message.alpha_presence
+        alpha_frequency = message.alpha_frequency
+        alpha_decay = message.alpha_decay
+        out_str = ""
+        occurrence = {}
+        logits= []
         all_tokens = []
         out_last = 0
-        out_str = ''
-        token_count =  message.token_count
-        occurrence = {}
-        if token_count == 0:
-            tokens = message.to_tokens()
-            print(tokens)
-            while len(tokens) > 0:
-                #out, state = self.model.forward(tokens[0], state)
-                #tokens = tokens[1:]
-                out, state = self.model.forward(tokens[:message.chunk_len], state)
-                tokens = tokens[message.chunk_len:]
-            if self.init_state == None:
-                self.init_state = copy.deepcopy(state)
-            self.state = copy.deepcopy(state)
-            message.generated = True
-            message.response = ""
-            return message
-        else:
-            token = False
-            for i in range(token_count):
-                tokens = message.to_tokens()  if i == 0 else [token]
-                # forward & adjust prob.
-                while len(tokens) > 0:
-                    out, state = self.model.forward(tokens[:message.chunk_len], state)
-                    tokens = tokens[message.chunk_len:]
-                    #out, state = self.model.forward(tokens[0], state)
-                    #tokens = tokens[1:]
+        for token in tokens:
+            logits , self.state = self.model(token, self.state)
+        for i in range(0,token_count):
+            for n in token_ban:
+                logits[n] = -float('inf')
+            for n in occurrence:
+                logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
 
-                for n in message.token_ban:
-                    out[n] = -float('inf')
-                for n in occurrence:
-                    out[n] -= (message.alpha_presence + occurrence[n] * message.alpha_frequency)
+            token = RWKV.sample_logits(logits,
+                                       temperature=temperature,
+                                       top_p=top_p)
+            if token in token_stop:
+                break
+            all_tokens += [token]
+            for xxx in occurrence:
+               occurrence[xxx] *= alpha_decay
+            if token not in occurrence:
+               occurrence[token] = 1
+            else:
+               occurrence[token] += 1
+            text = tokenizer.decode(all_tokens[out_last:])
+            if '\ufffd' not in text: # only print when we have a valid utf-8 string
+                print(text, end="", flush=True)
+                out_str += text
+                out_last = i + 1
+            logits,self.state = self.model(token, self.state)
+        message.generated =  True
+        message.response = out_str
+        return message
 
-                # sampler
-                token = self.sample_logits(out,
-                                            temperature=message.temperature,
-                                            top_p=message.top_p,
-                                            top_k=message.top_k)
-
-                if token in message.token_stop:
-                    break
-                all_tokens += [token]
-                for xxx in occurrence:
-                    occurrence[xxx] *= message.alpha_decay
-                if token not in occurrence:
-                    occurrence[token] = 1
-                else:
-                    occurrence[token] += 1
-                # output
-                tmp = tokenizer.decode(all_tokens[out_last:])
-                if '\ufffd' not in tmp: # is valid utf-8 string?
-                    if callback:
-                        callback(tmp)
-                    out_str += tmp
-                    out_last = i + 1
-            # 保存state 进行初始化
-            if self.init_state == None:
-                self.init_state = copy.deepcopy(state)
-            # 保存state到env
-            self.state = copy.deepcopy(state)
-            message.generated =  True
-            message.response = out_str
-            return message
-
-        def finish(self):
-            messages = []
-            for message in self.messages:
-                if message.generated:
-                    messages.append(message)
-                else:
-                    message = self.generate(message)
-                    message.save()
-                    self.scene.add_message(message)
-                    messages.append(message)
-            self.message = messages
-            return self
+    def finish(self):
+        messages = []
+        for message in self.messages:
+            if message.generated:
+                messages.append(message)
+            else:
+                message = self.generate(message)
+                message.save()
+                self.scene.add_message(message)
+                messages.append(message)
+        self.message = messages
+        return self

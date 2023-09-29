@@ -9,9 +9,8 @@ def save_data(item: dict):
     with open('./data/log.jsonl', 'a', encoding='utf-8') as f:
         f.write(text)
 
-
-def load_config() -> dict:
-    with open("./config.json", "r", encoding="utf-8") as f:
+def load_config(config_path="./config_scripts/config.json") -> dict:
+    with open(config_path, "r", encoding="utf-8") as f:
         text = f.read()
     res = json.loads(text)
     return res
