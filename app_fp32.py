@@ -1,4 +1,5 @@
 import os
+from models import org_text
 os.environ['RWKV_JIT_ON'] = "0"
 os.environ['RWKV_TORCH_COMPILE'] = "0"
 os.environ['RWKV_FLOAT_MODE'] = "fp32"
@@ -9,6 +10,7 @@ from bottle import route, run, template, request
 import torch
 import gc
 import deepspeed
+import copy
 import requests
 from tqdm import tqdm
 from models.page import Page
@@ -38,6 +40,8 @@ model, optimizer, _, _ = deepspeed.initialize(model=origin_model,
 model.load_checkpoint(load_dir="./save.pth")
 
 rnn_model = None
+rnn_init_state = None
+rnn_state = None
 args = types.SimpleNamespace()
 args.n_layer = 32
 args.n_embd = 2560
@@ -55,25 +59,109 @@ def rnn_load_model():
 
 @route('/rnn/inference', method='POST')
 def rnn__inference():
-    global rnn_model
+    global rnn_model,rnn_state, rnn_init_state
     item = request.json
     gc.collect()
     torch.cuda.empty_cache()
     if rnn_model == None:
         rnn_load_model()
-    tokens  = tokenizer.encode("hello, what's your name")
-    state = None
-    logits= None
+    #================================
+    tokens = item['tokens']
+    org_text = item.get('org_text')
+    token_count = item.get('token_count', 256)
+    token_stop =  item.get('token_stop', [65535])
+    token_ban = item.get('token_ban', [0])
+    alpha_presence = item.get('alpha_presence', 0.45)
+    alpha_frequency = item.get('alpha_frequency', 0.45)
+    temperature=item.get('temperature', 0.1)
+    top_p=item.get('top_p', 0.1)
+    alpha_decay = item.get('alpha_decay', 0.996)
+    reset_state = item.get('reset_state', True)
+    init_state =  item.get('init_state', False)
+    debug = item.get('debug',False)
+
+    if not org_text.startswith("#+TODO"):
+        todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
+        text = todo + org_text
+    coll = []
+    try:
+        coll = text_to_node(text)
+    except:
+        print("not valid")
+    if debug:
+        tokens =  tokenizer.encode("你好啊，请问你叫什么名字？\n" )
+    #================================
+    if reset_state:
+        rnn_state = copy.deepcopy(rnn_init_state)
+    out_str = ""
+    occurrence = {}
+    logits= []
+    all_tokens = []
+    out_last = 0
     for token in tokens:
-        logits,state = rnn_model(token, state)
-    for x in range(0,100):
-        token = RWKV.sample_logits(logits)
-        text = tokenizer.decode([token])
-        logits,state = rnn_model(token,state)
+        logits , rnn_state = rnn_model(token, rnn_state)
+    if init_state:
+        rnn_init_state = copy.deepcopy(rnn_state)
+    for i in range(0,token_count):
+        for n in token_ban:
+            logits[n] = -float('inf')
+        for n in occurrence:
+            logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+
+        token = RWKV.sample_logits(logits,
+                                   temperature=temperature,
+                                   top_p=top_p)
+        if token in token_stop:
+            break
+        all_tokens += [token]
+        for xxx in occurrence:
+           occurrence[xxx] *= alpha_decay
+        if token not in occurrence:
+           occurrence[token] = 1
+        else:
+           occurrence[token] += 1
+        text = tokenizer.decode(all_tokens[out_last:])
+        if '\ufffd' not in text: # only print when we have a valid utf-8 string
+            print(text, end="", flush=True)
+            out_str += text
+            out_last = i + 1
+        logits,rnn_state = rnn_model(token, rnn_state)
         print( text, end="", flush= True)
-    weight = model.module.state_dict()
-    rnn_model = RWKV_RNN(weight,args)
+    # weight = model.module.state_dict()
+    # rnn_model = RWKV_RNN(weight,args)
     return {"message":"load suceess"}
+
+@route('/rnn/by-inf', method='POST')
+def rnn_by_inf():
+    global model
+    gc.collect()
+    torch.cuda.empty_cache()
+    item = request.json
+    temperautre = item.get('temperature', 0.1)
+    top_p = item.get('top_p', 0.1)
+    text = item['org']
+    todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
+    if not "".startswith("#+TODO"):
+        text = todo +text
+    coll = text_to_node(text)
+    item_id = max(coll.keys())
+    item = coll[item_id]
+    print("==start===" )
+    tokens = tokenizer.encode("who are you? what's your name?")
+    print("===",tokens)
+    res = []
+    state = None
+    text,state = inference_with_state(model,
+                                      tokens,
+                                      temperature=0.2,
+                                      top_p=0.2,
+                                      token_count=256,
+                                      state=None)
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    return {"response": text}
+
 
 
 @route('/train/by-token', method='POST')
@@ -107,7 +195,7 @@ def train_by_org():
     item = request.json
     text = item['org']
     todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
-    if not "".startswith("#+TODO"):
+    if not text.startswith("#+TODO"):
         text = todo +text
     coll = text_to_node(text)
     losses = []
@@ -185,36 +273,6 @@ def inference_by_org():
     return {"response": output}
 
 
-@route('/inference/by-inf', method='POST')
-def inference_by_inf():
-    global model
-    gc.collect()
-    torch.cuda.empty_cache()
-    item = request.json
-    temperautre = item.get('temperature', 0.1)
-    top_p = item.get('top_p', 0.1)
-    text = item['org']
-    todo = "#+TODO: USER ROBOT SYSTEM TEXT BOOK THINK CLAUDE TITLE | CANCELED\n"
-    if not "".startswith("#+TODO"):
-        text = todo +text
-    coll = text_to_node(text)
-    item_id = max(coll.keys())
-    item = coll[item_id]
-    print("==start===" )
-    tokens = tokenizer.encode("who are you? what's your name?")
-    print("===",tokens)
-    res = []
-    state = None
-    text,state = inference_with_state(model,
-                                      tokens,
-                                      temperature=0.2,
-                                      top_p=0.2,
-                                      token_count=256,
-                                      state=None)
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    return {"response": text}
 
 @route('/inference/by-token', method='POST')
 def inference_by_token():
