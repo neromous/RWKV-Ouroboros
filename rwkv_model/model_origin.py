@@ -411,87 +411,6 @@ class Block(nn.Module):
         return x
 
 
-    def nograd_channel_mixing(self, x, state, i:int, time_mix_k, time_mix_r, kw, vw, rw):
-        xk = x * time_mix_k + state[5*i+0] * (1 - time_mix_k)
-        xr = x * time_mix_r + state[5*i+0] * (1 - time_mix_r)
-        state[5*i+0] = x
-        r = torch.sigmoid(rw @ xr)
-        k = torch.square(torch.relu(kw @ xk)) # square relu, primer paper
-        return r * (vw @ k)
-
-
-    def nograd_time_mixing(self, x, state, i:int, time_mix_k, time_mix_v, time_mix_r, time_first, time_decay, kw, vw, rw, ow):
-        xk = x * time_mix_k + state[5*i+1] * (1 - time_mix_k)
-        xv = x * time_mix_v + state[5*i+1] * (1 - time_mix_v)
-        xr = x * time_mix_r + state[5*i+1] * (1 - time_mix_r)
-        state[5*i+1] = x
-        r = torch.sigmoid(rw @ xr)
-        k = kw @ xk
-        v = vw @ xv
-
-        aa = state[5*i+2]
-        bb = state[5*i+3]
-        pp = state[5*i+4]
-        ww = time_first + k
-        qq = torch.maximum(pp, ww)
-        e1 = torch.exp(pp - qq)
-        e2 = torch.exp(ww - qq)
-        a = e1 * aa + e2 * v
-        b = e1 * bb + e2
-        wkv = a / b
-        ww = pp + time_decay
-        qq = torch.maximum(ww, k)
-        e1 = torch.exp(ww - qq)
-        e2 = torch.exp(k - qq)
-        state[5*i+2] = e1 * aa + e2 * v
-        state[5*i+3] = e1 * bb + e2
-        state[5*i+4] = qq
-        return ow @ (r * wkv)
-
-    def nograd_layer_norm(self, x, w):
-        return F.layer_norm(x, (self.args.n_embd,), weight=w.weight, bias=w.bias)
-
-    def nograd_layer_norm_data(self, x, w):
-        return F.layer_norm(x, (self.args.n_embd,), weight=w.weight.data, bias=w.bias)
-
-
-    def nograd_forward(self, x, state):
-        with torch.no_grad():
-            if self.layer_id == 0:
-                x = self.nograd_layer_norm_data(x, self.ln0)
-
-            att = self.att
-            x = self.nograd_layer_norm_data(x, self.ln1)
-            time_decay = -torch.exp(self.att.time_decay.data)
-            x = x + self.nograd_time_mixing(x,
-                                            state,
-                                            self.layer_id,
-                                            self.att.time_mix_k.data.squeeze(),
-                                            self.att.time_mix_v.data.squeeze(),
-                                            self.att.time_mix_r.data.squeeze(),
-                                            self.att.time_first.data,
-                                            time_decay,
-                                            self.att.key.weight.data,
-                                            self.att.value.weight.data,
-                                            self.att.receptance.weight.data,
-                                            self.att.output.weight.data)
-
-            x = self.nograd_layer_norm_data(x, self.ln2)
-            x = x + self.nograd_channel_mixing(x,
-                                               state,
-                                               self.layer_id,
-                                               self.ffn.time_mix_k.data.squeeze(),
-                                               self.ffn.time_mix_r.data.squeeze(),
-                                               self.ffn.key.weight.data,
-                                               self.ffn.value.weight.data,
-                                               self.ffn.receptance.weight.data)
-
-
-            return x.float()
-
-
-
-
 
 class L2Wrap(torch.autograd.Function):
     @staticmethod
@@ -528,14 +447,15 @@ class RWKV(nn.Module):
                  warmup_steps = 8,
                  adamw_mode=False,
                  dtype="fp32",
+                 lora=False,
                  loaded=True):
         super().__init__()
         if dtype == "fp32":
-            self.dtype=torch.float
+            self.my_datatype=torch.float
         elif dtype == "fp16":
-            self.dtype=torch.half
+            self.my_datatype=torch.half
         elif dtype== "bf16":
-            self.dtype = torch.bfloat16
+            self.my_datatype = torch.bfloat16
         self.load_model = load_model
         #加载model_weights
         model_weights = torch.load(self.load_model, map_location='cpu')
@@ -607,7 +527,7 @@ class RWKV(nn.Module):
         self.ln_out = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.vocab_size, bias=False)
         if loaded:
-            model_weights = {k:v.to('cuda',dtype=self.dtype) for k,v
+            model_weights = {k:v.to('cuda',dtype=self.my_datatype) for k,v
                          in model_weights.items()}
             # 加载至系统
             self.load_state_dict(model_weights)
@@ -638,7 +558,7 @@ class RWKV(nn.Module):
         # print('3x', lr_3x)
         param_dict = {n: p for n, p in self.named_parameters()}
 
-        if self.dtype == torch.float32:
+        if self.my_datatype == torch.float32:
             optim_groups = [
                 {
                     "fp32_optimizer": True,
@@ -725,11 +645,13 @@ class RWKV(nn.Module):
         # -------- 计算loss  --------
         return logits
 
-    def training_step(self, data,mask=None):
-        idx = data[:-1]
-        targets = data[1:]
+    def training_step(self, batch:dict,mask=None,**kwargs):
+        seq = batch['input_ids']
+        masks = batch.get('attention_mask',None)
+        idx = seq[:-1]
+        targets = seq[1:]
         if mask == None:
-            mask = [int(x!=0) for x in targets]
+            mask = [int(x!=0) for x in idx]
         idx = torch.tensor([idx],dtype=torch.long).to('cuda')
         targets = torch.tensor([targets],dtype=torch.long).to('cuda')
         mask = torch.tensor([mask],dtype=torch.float32).to('cuda')
@@ -773,94 +695,3 @@ class RWKV(nn.Module):
             #gc.collect()
             #torch.cuda.empty_cache()
             return x
-
-    def nograd_layer_norm_data(self, x, w):
-        return F.layer_norm(x, (self.n_embd,), weight=w.weight.data, bias=w.bias)
-
-    def nograd_layer_norm(self, x, w):
-        return F.layer_norm(x, (self.n_embd,), weight=w.weight, bias=w.bias)
-
-    def inference_with_state(self, token, state=None):
-        with torch.no_grad():
-            idx = token
-            #idx = torch.tensor(idx,dtype=torch.long).to('cuda')
-            # --------------------------------
-            if state == None:
-                state = torch.zeros(self.n_layer * 5, self.n_embd).to('cuda',dtype=self.dtype)
-                for i in range(self.n_layer):
-                    state[5*i+4] = -1.0e30
-                    #state[5*i+4] = -float('inf')
-
-            # -------- 计算 idx 到logits --------
-            #B, T = idx.size()
-            #assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
-            x = self.emb.weight[idx]
-
-            for block in self.blocks:
-                x = block.nograd_forward(x,state)
-                #if self.grad_cp == 1:
-                #    x,state = deepspeed.checkpointing.checkpoint(block.nograd_forward, x, state)
-                #else:
-                #    x,state = block.nograd_forward(x,state)
-
-            x =  self.nograd_layer_norm_data(x, self.ln_out)
-
-            x = self.head.weight.data @ x
-
-            return x.float() , state
-
-    @classmethod
-    def sample_logits(cls,
-                      logits:torch.tensor,
-                      temperature=0.1,
-                      top_p=0.1, top_k=0):
-        probs = F.softmax(logits.float(), dim=-1)
-        top_k = int(top_k)
-        if probs.device == torch.device('cpu'):
-            probs = probs.numpy()
-            sorted_ids = np.argsort(probs)
-            sorted_probs = probs[sorted_ids][::-1]
-            cumulative_probs = np.cumsum(sorted_probs)
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            probs = probs / np.sum(probs)
-            out = np.random.choice(a=len(probs), p=probs)
-            return int(out)
-        else:
-            sorted_ids = torch.argsort(probs)
-            sorted_probs = probs[sorted_ids]
-            sorted_probs = torch.flip(sorted_probs, dims=(0,))
-            cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            out = torch.multinomial(probs, num_samples=1)[0]
-            return int(out)
-
-    # @classmethod
-    # def nograd_sample_logits(cls,
-    #                          logits:torch.tensor,
-    #                          temperature=0.1,
-    #                          top_p=0.1,
-    #                          top_k=0):
-    #     probs = F.softmax(logits.float(), dim=-1)
-    #     top_k = int(top_k)
-    #     sorted_ids = torch.argsort(probs)
-    #     sorted_probs = probs[sorted_ids]
-    #     sorted_probs = torch.flip(sorted_probs, dims=(0,))
-    #     cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
-    #     cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-    #     probs[probs < cutoff] = 0
-    #     if top_k < len(probs) and top_k > 0:
-    #         probs[sorted_ids[:-top_k]] = 0
-    #     if temperature != 1.0:
-    #         probs = probs ** (1.0 / temperature)
-    #     out = torch.multinomial(probs, num_samples=1)[0]
-    #     return int(out)

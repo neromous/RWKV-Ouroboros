@@ -665,7 +665,7 @@ class RWKV(nn.Module):
                                          bias_correction=True,
                                          #adamw_mode=self.adamw_mode,
                                          weight_decay=self.weight_decay,
-                                         #amsgrad=False
+                                         amsgrad=False
                                          )
         lr_scheduler = None
         if self.warmup_steps > 0:
@@ -716,8 +716,8 @@ class RWKV(nn.Module):
         masks = batch.get('attention_mask',None)
         idx = seq[:-1]
         targets = seq[1:]
-        idx = torch.tensor([idx]).cuda()
-        targets = torch.tensor([targets]).cuda()
+        idx = torch.tensor([idx],dtype=torch.long).cuda()
+        targets = torch.tensor([targets],dtype=torch.long).cuda()
         # idx, targets, *others = batch
         B, T = idx.shape
         C = args.n_embd

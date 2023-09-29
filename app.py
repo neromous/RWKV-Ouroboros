@@ -9,7 +9,7 @@ config = load_config()
 #===============pico 配置项=================
 os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
 os.environ['RWKV_FLOAT_MODE'] = config['environ']['RWKV_FLOAT_MODE']
-
+os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
 if config['infctx_on']:
     if config['infctx_type'] == "wani-boat":
         ctx_parts =  config['trainer']['ctx_parts']
@@ -17,22 +17,25 @@ if config['infctx_on']:
         os.environ['RWKV_PARTS'] = str(ctx_parts)
         os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE'] #开启后编译WKV_STATE的cuda kernal
         os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
-        ds_config =  "./offload_ds_config.config"
+        ds_config =  "./stage1_offload_ds_config.config"
         from rwkv_model.model_state import RWKV
     elif config['infctx_type'] == "pico":
         os.environ['RWKV_TORCH_COMPILE'] = config['environ']['RWKV_TORCH_COMPILE']
         from rwkv_model.model import RWKV
-        ds_config =  "./ds_config.config"
+        ds_config =  "./bf16_config.config"
 else:
     from rwkv_model.model_origin import RWKV
-    ds_config =  "./fp32_ds_config.config"
-
-
+    if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
+        ds_config =  "./fp32_ds_config.config"
+    elif config['environ']['RWKV_FLOAT_MODE'] == "fp16":
+        ds_config =  "./fp16_ds_config.config"
+    elif config['environ']['RWKV_FLOAT_MODE'] == "bf16":
+        ds_config =  "./bf16_ds_config.config"
 from rwkv_model.model_infer import RWKV_RNN
 from models.scene import Scene
 from models.page import Page
 from utils import save_data
-from inference.core import InferenceWithState
+from models.inference_helper import InferenceWithState
 import copy
 from tqdm import tqdm
 
@@ -54,26 +57,25 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
                                                      lr_scheduler=lr_scheduler,
                                                      config=ds_config)
 
-infer_model = InferenceWithState(model_engine)
-
+inferencer = InferenceWithState()
+rwkv_rnn = None
 
 
 @route('/inference/load-model', method='POST')
 def load_model():
-    global infer_model, model_engine
+    global inferencer, model_engine,rwkv_rnn
     item = request.json
-    infer_model.clean_model()
     gc.collect()
     torch.cuda.empty_cache()
-    infer_model.load_model()
+    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
     return {"response": "model save"}
 
 
 @route('/inference/remove-model', method='POST')
 def remove_model():
-    global infer_model
+    global inferencer
     item = request.json
-    infer_model.clean_model()
+    rwkv_rnn = None
     gc.collect()
     torch.cuda.empty_cache()
     return {"response": "model save"}
@@ -81,39 +83,39 @@ def remove_model():
 
 @route('/state/init', method='POST')
 def init():
-    global infer_model
+    global inferencer,rwkv_rnn
     item = request.json
     messages = item.get('messages',[])
     resp = []
     for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg, state=infer_model.state)
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate(rwkv_rnn,msg)
         msg.save()
         resp.append(msg.json())
-    infer_model.set_init_state()
-    print(infer_model.state)
-    print(infer_model.init_state)
+    inferencer.set_init_state()
+    print(inferencer.state)
+    print(inferencer.init_state)
     return {"messages": resp}
 
 
 @route('/state/reset', method='POST')
 def reset_state():
-    global infer_model
-    print(infer_model.state)
-    print(infer_model.init_state)
-    infer_model.reset_state()
+    global inferencer
+    print(inferencer.state)
+    print(inferencer.init_state)
+    inferencer.reset_state()
     return {"messages": 'reset'}
 
 
 @route('/inference/generate', method='POST')
-def generate():
-    global infer_model
+def inference_generate():
+    global inferencer,rwkv_rnn
     item = request.json
     messages = item.get('messages',[])
     resp = []
     for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg, state=infer_model.state)
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate(rwkv_rnn,msg)
         msg.save()
         resp.append(msg.json())
     return {"messages": resp}
@@ -137,14 +139,23 @@ def train():
         train_data = Scene.new(item)
     else:
         return {"message": "failed for unvalid data, request should be a dict"}
-    batch = {"input_ids": train_data.to_tensor().to('cuda'),
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
-    model_engine.step()
+
+    total = 0
+    mean_loss = 0
+    i = 0
+    data_iter = train_data.yield_tokens(ctx_len=2048,window=512)
+    for token in data_iter:
+        i += 1
+        batch = {"input_ids": token,
+                 "attention_mask": None}
+        m = model_engine.training_step(batch, model_engine=model_engine)
+        loss = m.item()
+        total += loss
+        mean_loss = total / i
+        model_engine.backward(m)
+        model_engine.step()
     # save_data(item)
-    return {"loss": loss}
+    return {"loss": mean_loss}
 
 @route('/train/token', method='POST')
 def train_token():
@@ -217,36 +228,62 @@ def train_sft():
 
 
 if config['debug'] :
-    print("===train test start==")
-    train_data = [x for x in range(0,4096)]
-    batch = {"input_ids": train_data,
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
-    model_engine.step()
-    print("===train test over==",loss)
-    infer_model.load_model()
     messages = [{"text" :"你好啊", "role" : "text","over":False, "token_count":128 } ]
     for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg)
-        print("==msg==",msg)
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate_no_state(model, msg)
+        print("=====msg",msg)
+    pass
 
     print("===train test start==")
-    train_data = [x for x in range(0,4096)]
+    train_data = [x for x in range(0,1024)]
     batch = {"input_ids": train_data,
              "attention_mask": None}
     m = model_engine.training_step(batch, model_engine=model_engine)
     loss = m.item()
     model_engine.backward(m)
     model_engine.step()
+    gc.collect()
+    torch.cuda.empty_cache()
+
     print("===train test over==",loss)
+    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
+
+    messages = [{"text" :"你好啊", "role" : "text","over":False, "token_count":128 } ]
     for message in messages:
-        msg = infer_model.scene.add_message(message)
-        msg = infer_model.generate(msg)
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate(rwkv_rnn,msg)
+        print("==msg==",msg)
+    print("===train test start==")
+    rwkv_rnn = None
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    train_data = [x for x in range(0,1024)]
+    batch = {"input_ids": train_data,
+             "attention_mask": None}
+    m = model_engine.training_step(batch, model_engine=model_engine)
+    loss = m.item()
+    model_engine.backward(m)
+    model_engine.step()
+    gc.collect()
+    torch.cuda.empty_cache()
+    print("===train test over==",loss)
+    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
+    for message in messages:
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate(rwkv_rnn,msg)
         print("==msg==",msg)
 
+    rwkv_rnn = None
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    m = model_engine.training_step(batch, model_engine=model_engine)
+    loss = m.item()
+    model_engine.backward(m)
+    model_engine.step()
+    print("===train test over==",loss)
 
 
 if not config['debug']:

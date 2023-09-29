@@ -1,19 +1,19 @@
+from utils import log, load_config
+config = load_config()
 import torch
 from torch.nn import functional as F
 import numpy as np
 import gc
-from rwkv_model.model_infer import RWKV_RNN
 from models.message import Message
 from models.scene import Scene
 import copy
 import types
 from tqdm import tqdm
-from utils import log, load_config
 
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 
-config = load_config()
+
 
 
 
@@ -150,7 +150,7 @@ class InferenceWithState:
         message.response = out_str
         return message
 
-    def generate_no_state(self, logits_fn,message:Message,callback=my_func):
+    def generate_no_state(self, model,message:Message,callback=my_func):
         tokens = message.tokens
         token_count = message.token_count
         temperature =  message.temperature
@@ -165,17 +165,19 @@ class InferenceWithState:
         logits= []
         ctx_len = self.ctx_len
         all_tokens = tokens[token_count - ctx_len:]
+        length = len(all_tokens)
         out_last = 0
         for i in range(0,token_count):
             logits = model.inference(all_tokens[-ctx_len:])
+            logits = logits[-1]
             for n in token_ban:
                 logits[n] = -float('inf')
             for n in occurrence:
                 logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
 
-            token = RWKV.sample_logits(logits,
-                                       temperature=temperature,
-                                       top_p=top_p)
+            token = sample_logits(logits,
+                                  temperature=temperature,
+                                  top_p=top_p)
             if token in token_stop:
                 break
             all_tokens += [token]
@@ -185,7 +187,7 @@ class InferenceWithState:
                occurrence[token] = 1
             else:
                occurrence[token] += 1
-            text = tokenizer.decode(all_tokens[out_last:])
+            text = tokenizer.decode(all_tokens[length + out_last:])
             if '\ufffd' not in text: # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
                 out_str += text
