@@ -449,43 +449,45 @@ class Block(nn.Module):
         return ow @ (r * wkv)
 
     def nograd_layer_norm(self, x, w):
-        return F.layer_norm(x, (self.n_embd,), weight=w.weight, bias=w.bias)
+        return F.layer_norm(x, (self.args.n_embd,), weight=w.weight, bias=w.bias)
 
-    def nograd_update(self):
-        pass
+    def nograd_layer_norm_data(self, x, w):
+        return F.layer_norm(x, (self.args.n_embd,), weight=w.weight.data, bias=w.bias)
 
 
     def nograd_forward(self, x, state):
         with torch.no_grad():
             if self.layer_id == 0:
-                x = self.ln0(x)
+                x = self.nograd_layer_norm_data(x, self.ln0)
 
             att = self.att
-            x = self.ln1(x)
+            x = self.nograd_layer_norm_data(x, self.ln1)
+            time_decay = -torch.exp(self.att.time_decay.data)
             x = x + self.nograd_time_mixing(x,
                                             state,
                                             self.layer_id,
-                                            self.att.time_mix_k.squeeze(),
-                                            self.att.time_mix_v.squeeze(),
-                                            self.att.time_mix_r.squeeze(),
-                                            self.att.time_first,
-                                            self.att.time_decay,
-                                            self.att.key.weight,
-                                            self.att.value.weight,
-                                            self.att.receptance.weight,
-                                            self.att.output.weight)
-            x = self.ln2(x)
+                                            self.att.time_mix_k.data.squeeze(),
+                                            self.att.time_mix_v.data.squeeze(),
+                                            self.att.time_mix_r.data.squeeze(),
+                                            self.att.time_first.data,
+                                            time_decay,
+                                            self.att.key.weight.data,
+                                            self.att.value.weight.data,
+                                            self.att.receptance.weight.data,
+                                            self.att.output.weight.data)
+
+            x = self.nograd_layer_norm_data(x, self.ln2)
             x = x + self.nograd_channel_mixing(x,
                                                state,
                                                self.layer_id,
-                                               self.ffn.time_mix_k.squeeze(),
-                                               self.ffn.time_mix_r.squeeze(),
-                                               self.ffn.key.weight,
-                                               self.ffn.value.weight,
-                                               self.ffn.receptance.weight)
+                                               self.ffn.time_mix_k.data.squeeze(),
+                                               self.ffn.time_mix_r.data.squeeze(),
+                                               self.ffn.key.weight.data,
+                                               self.ffn.value.weight.data,
+                                               self.ffn.receptance.weight.data)
 
 
-            return x.float(), state
+            return x.float()
 
 
 
@@ -524,16 +526,17 @@ class RWKV(nn.Module):
                  beta2=0.999,
                  warmup_steps = 8,
                  adamw_mode=False,
-                 dtype="fp32"):
+                 dtype="fp32",
+                 loaded=True):
         super().__init__()
         if dtype == "fp32":
-            self.dtype=torch.float32
+            self.dtype=torch.float
         elif dtype == "fp16":
-            self.dtype=torch.float16
+            self.dtype=torch.half
         elif dtype== "bf16":
             self.dtype = torch.bfloat16
         self.load_model = load_model
-        # 加载model_weights
+        #加载model_weights
         model_weights = torch.load(self.load_model, map_location='cpu')
         model_keys = list(model_weights.keys())
 
@@ -551,6 +554,12 @@ class RWKV(nn.Module):
 
         if vocab_size < 0:
             vocab_size = model_weights['head.weight'].shape[0]
+
+        if not loaded:
+            self.n_layer = n_layer
+            self.n_embd = n_embd
+            self.vocab_size = vocab_size
+
 
         self.adamw_mode =adamw_mode
         self.n_layer = n_layer
@@ -596,13 +605,14 @@ class RWKV(nn.Module):
 
         self.ln_out = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.vocab_size, bias=False)
-        model_weights = {k:v.to(dtype=self.dtype) for k,v
+        if loaded:
+            model_weights = {k:v.to('cuda',dtype=self.dtype) for k,v
                          in model_weights.items()}
-        # 加载至系统
-        self.load_state_dict(model_weights)
-        del model_weights
-        gc.collect()
-        torch.cuda.empty_cache()
+            # 加载至系统
+            self.load_state_dict(model_weights)
+            del model_weights
+            gc.collect()
+            torch.cuda.empty_cache()
 
 
     def configure_optimizers(self):
@@ -684,6 +694,7 @@ class RWKV(nn.Module):
                                          bias_correction=True,
                                          adamw_mode=self.adamw_mode,
                                          weight_decay=self.weight_decay,
+                                         fp32_optimizer_states=False,
                                          amsgrad=False)
         lr_scheduler = None
         if self.warmup_steps > 0:
@@ -702,7 +713,6 @@ class RWKV(nn.Module):
 
         x = self.emb(idx)
         x_emb = x
-        print("===dtype in forward==", x.dtype)
         for block in self.blocks:
             if self.grad_cp == 1:
                 x = deepspeed.checkpointing.checkpoint(block, x)
@@ -749,7 +759,6 @@ class RWKV(nn.Module):
             assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
             x = self.emb(idx)
 
-            x_emb = x
             for block in self.blocks:
                 x = block(x)
 
@@ -764,27 +773,38 @@ class RWKV(nn.Module):
             #torch.cuda.empty_cache()
             return x
 
+    def nograd_layer_norm_data(self, x, w):
+        return F.layer_norm(x, (self.n_embd,), weight=w.weight.data, bias=w.bias)
+
+    def nograd_layer_norm(self, x, w):
+        return F.layer_norm(x, (self.n_embd,), weight=w.weight, bias=w.bias)
+
     def inference_with_state(self, token, state=None):
         with torch.no_grad():
             idx = token
-            idx = torch.tensor(idx,dtype=torch.long).to('cuda')
+            #idx = torch.tensor(idx,dtype=torch.long).to('cuda')
             # --------------------------------
             if state == None:
-                state = torch.zeros(self.n_layer * 5, self.n_embd).to('cuda')
+                state = torch.zeros(self.n_layer * 5, self.n_embd).to('cuda',dtype=self.dtype)
                 for i in range(self.n_layer):
-                    state[5*i+4] = -1e30
+                    state[5*i+4] = -1.0e30
+                    #state[5*i+4] = -float('inf')
 
             # -------- 计算 idx 到logits --------
             #B, T = idx.size()
             #assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
-            x = self.emb(idx)
+            x = self.emb.weight[idx]
 
             for block in self.blocks:
-                x,state = block.nograd_forward(x,state)
+                x = block.nograd_forward(x,state)
+                #if self.grad_cp == 1:
+                #    x,state = deepspeed.checkpointing.checkpoint(block.nograd_forward, x, state)
+                #else:
+                #    x,state = block.nograd_forward(x,state)
 
-            x = self.ln_out(x)
+            x =  self.nograd_layer_norm_data(x, self.ln_out)
 
-            x = self.head.weight @ x
+            x = self.head.weight.data @ x
 
             return x.float() , state
 

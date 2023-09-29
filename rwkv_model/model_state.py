@@ -112,12 +112,14 @@ from torch.utils.cpp_extension import load
 
 
 if os.environ["RWKV_FLOAT_MODE"] == "bf16":
-    wkv_cuda = load(name=f"wkv_{T_MAX}_bf16", sources=["cuda_state/wkv_op_state_bf16.cpp",
-                                                       "cuda_state/wkv_cuda_state_bf16.cu"],
-                    verbose=True, extra_cuda_cflags=["-t 4", "-std=c++17", "-res-usage",
-                                                     "--maxrregcount 60", "--use_fast_math", "-O3",
-                                                     "-Xptxas -O3", "--extra-device-vectorization",
-                                                     f"-DTmax={T_MAX}"])
+    wkv_cuda = load(name=f"wkv_{T_MAX}_bf16",
+                    sources=["cuda_state/wkv_op_state_bf16.cpp",
+                             "cuda_state/wkv_cuda_state_bf16.cu"],
+                    verbose=True,
+                    extra_cuda_cflags=["-t 4", "-std=c++17", "-res-usage",
+                                       "--maxrregcount 60", "--use_fast_math", "-O3",
+                                       "-Xptxas -O3", "--extra-device-vectorization",
+                                       f"-DTmax={T_MAX}"])
     class WKV(torch.autograd.Function):
         # @staticmethod
         # def init_state(B, C):
@@ -137,8 +139,13 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
             k = k.contiguous()
             v = v.contiguous()
             last_state = last_state.contiguous()
-            y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            new_state = torch.empty((B, C, 3), device=w.device, memory_format=torch.contiguous_format,dtype=torch.float32)
+            y = torch.empty((B, T, C), device=w.device,
+                            memory_format=torch.contiguous_format,
+                            dtype=torch.bfloat16)
+            new_state = torch.empty((B, C, 3),
+                                    device=w.device,
+                                    memory_format=torch.contiguous_format,
+                                    dtype=torch.float32)
             wkv_cuda.forward(B, T, C, w, u, k, v, last_state, y,new_state)
             ctx.save_for_backward(w, u, k, v, y,last_state)
             return y,new_state
@@ -152,22 +159,38 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
             assert T <= T_MAX
             assert B * C % min(C, 32) == 0
             w, u, k, v, y, last_state = ctx.saved_tensors
-            gw = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gu = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gk = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            gv = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
-            glast_state = torch.empty((B, C, 3), device=w.device, memory_format=torch.contiguous_format,dtype=torch.float32)
-            wkv_cuda.backward(B, T, C, w, u, k, v, last_state, y, gy.contiguous(), gnew_state.contiguous(), gw, gu, gk, gv, glast_state)
+            gw = torch.empty((B, C), device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gu = torch.empty((B, C), device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gk = torch.empty((B, T, C), device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            gv = torch.empty((B, T, C), device=gy.device,
+                             memory_format=torch.contiguous_format,
+                             dtype=torch.bfloat16)
+            glast_state = torch.empty((B, C, 3), device=w.device,
+                                      memory_format=torch.contiguous_format,
+                                      dtype=torch.float32)
+            wkv_cuda.backward(B, T, C, w, u, k, v, last_state, y,
+                              gy.contiguous(), gnew_state.contiguous(),
+                              gw, gu, gk, gv, glast_state)
             gw = torch.sum(gw, dim=0)
             gu = torch.sum(gu, dim=0)
             return (None, None, None, gw, gu, gk, gv, glast_state)
 
 else:
-    wkv_cuda = load(name=f"wkv_{T_MAX}", sources=["cuda_state/wkv_op_state.cpp",
-                                                  "cuda_state/wkv_cuda_state.cu"],
-                    verbose=True, extra_cuda_cflags=["-res-usage", "--maxrregcount 60",
-                                                     "--use_fast_math", "-O3", "-Xptxas -O3",
-                                                     "--extra-device-vectorization", f"-DTmax={T_MAX}"])
+    wkv_cuda = load(name=f"wkv_{T_MAX}",
+                    sources=["cuda_state/wkv_op_state.cpp",
+                             "cuda_state/wkv_cuda_state.cu"],
+                    verbose=True,
+                    extra_cuda_cflags=["-res-usage",
+                                       "--maxrregcount 60",
+                                       "--use_fast_math",
+                                       "-O3", "-Xptxas -O3",
+                                       "--extra-device-vectorization", f"-DTmax={T_MAX}"])
     class WKV(torch.autograd.Function):
         @staticmethod
         def forward(ctx, B, T, C, w, u, k, v,last_state):
@@ -187,8 +210,13 @@ else:
                 k = k.float().contiguous()
                 v = v.float().contiguous()
             last_state = last_state.contiguous()
-            y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format)
-            new_state = torch.empty((B, C, 3), device=w.device, memory_format=torch.contiguous_format,dtype=torch.float32)
+            y = torch.empty((B, T, C),
+                            device=w.device,
+                            memory_format=torch.contiguous_format)
+            new_state = torch.empty((B, C, 3),
+                                    device=w.device,
+                                    memory_format=torch.contiguous_format,
+                                    dtype=torch.float32)
             wkv_cuda.forward(B, T, C, w, u, k, v, last_state, y,new_state)
             ctx.save_for_backward(w, u, k, v, y,last_state)
             if "32" in os.environ["RWKV_FLOAT_MODE"]:
@@ -205,15 +233,30 @@ else:
             assert T <= T_MAX
             assert B * C % min(C, 32) == 0
             w, u, k, v, y, last_state = ctx.saved_tensors
-            gw = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
-            gu = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
-            gk = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
-            gv = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
-            glast_state = torch.empty((B, C, 3), device=w.device, memory_format=torch.contiguous_format,dtype=torch.float32)
+            gw = torch.empty((B, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format)
+            gu = torch.empty((B, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format)
+            gk = torch.empty((B, T, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format)
+            gv = torch.empty((B, T, C),
+                             device=gy.device,
+                             memory_format=torch.contiguous_format)
+            glast_state = torch.empty((B, C, 3),
+                                      device=w.device,
+                                      memory_format=torch.contiguous_format,
+                                      dtype=torch.float32)
             if "32" in os.environ["RWKV_FLOAT_MODE"]:
-                wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.contiguous(), gnew_state.contiguous(), gw, gu, gk, gv, glast_state)
+                wkv_cuda.backward(B, T, C, w, u, k, v,last_state, y,
+                                  gy.contiguous(),gnew_state.contiguous(),
+                                  gw, gu, gk, gv, glast_state)
             else:
-                wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.float().contiguous(), gnew_state.contiguous(), gw, gu, gk, gv, glast_state)
+                wkv_cuda.backward(B, T, C, w, u, k, v, last_state,y,
+                                  gy.float().contiguous(),gnew_state.contiguous(),
+                                  gw, gu, gk, gv, glast_state)
             gw = torch.sum(gw, dim=0)
             gu = torch.sum(gu, dim=0)
             if "32" in os.environ["RWKV_FLOAT_MODE"]:
@@ -440,8 +483,6 @@ class L2Wrap(torch.autograd.Function):
         return (grad_output, gy, None)
 
 
-
-
 class RWKV(nn.Module):
     def __init__(self,
                  load_model:str,
@@ -634,9 +675,10 @@ class RWKV(nn.Module):
                                          betas=(self.beta1, self.beta2),
                                          eps=self.adam_eps,
                                          bias_correction=True,
-                                         adamw_mode=self.adamw_mode,
+                                         #adamw_mode=self.adamw_mode,
                                          weight_decay=self.weight_decay,
-                                         amsgrad=False)
+                                         #amsgrad=False
+                                         )
         lr_scheduler = None
         if self.warmup_steps > 0:
             lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
@@ -698,9 +740,11 @@ class RWKV(nn.Module):
             current_token_amount = (targets!=-100).sum() #这样是不是更合适？
             # current_token_amount = idx.shape[1]
             if current_token_amount == 0:
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.reshape(-1),reduction='sum')
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                                       targets.reshape(-1),reduction='sum')
             else:
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.reshape(-1))
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                                       targets.reshape(-1))
                 loss = L2Wrap.apply(loss, logits, current_token_amount)
             new_token_amount = prev_token_amount+current_token_amount
             if new_token_amount>0:
@@ -748,7 +792,8 @@ class RWKV(nn.Module):
         # pdb.set_trace()
         return total_loss
 
-    # def inference_step(self, batch, batch_idx):
+
+    # def inference_step(self, token):
     #     args = self.args
 
     #     idx, targets, *others = batch
@@ -757,53 +802,29 @@ class RWKV(nn.Module):
 
     #     states = BlockStateList.create(args.n_layer, B, C, idx.device,
     #         self.emb.weight.dtype)
-    #     # init_states = states
-    #     # init_states.shift_states.requires_grad_()
-    #     # init_states.wkv_states.requires_grad_()
-    #     def checkpointed_step(idx, targets, prev_loss, last_shift_states,
-    #                           last_wkv_states, prev_token_amount):
-    #         logits, new_shift_states, new_wkv_states = self(idx, last_shift_states, last_wkv_states)
-    #         current_token_amount = (targets!=-100).sum() #这样是不是更合适？
-    #         new_token_amount = prev_token_amount+current_token_amount
-    #         return new_loss, new_shift_states, new_wkv_states, new_token_amount
+    #     def checkpointed_step(idx, last_shift_states,
+    #                           last_wkv_states,
+    #                           prev_token_amount):
+    #         logits, new_shift_states, new_wkv_states = self(idx,
+    #                                                         last_shift_states,
+    #                                                         last_wkv_states)
+    #         return logits, new_shift_states, new_wkv_states
 
-    #     total_loss = torch.tensor(0.,dtype=self.emb.weight.dtype).requires_grad_()
-    #     token_amount = 0
-    #     # i = 0
-    #     #Blealtan的做法是ctx_len定义为cuda核的大小（对应我们这里的T_max），然后引入ctx_len_cutoff作为控制状态重置的长度
-    #     #然后T都是样本长度
-    #     #我感觉类似ctx_len_cutoff以后还是用额外的输入来标记每个序列的重置点，而不是模型内部规定一个重置点。
-    #     #所以这里就不改成Blealtan的思路了，不过稍后可以在他的基础上rebase。他的代码更简洁一些
-    #     i = 0
-    #     for i in range(math.ceil(T / T_MAX)-1):
-    #         # pdb.set_trace()
-    #         # total_loss, states, token_amount = deepspeed.checkpointing.checkpoint(
-    #         total_loss,new_shift_states, new_wkv_states,token_amount = torch_checkpoint(
-    #             checkpointed_step,
-    #             idx[:, i * T_MAX:(i + 1) * T_MAX],
-    #             targets[:, i * T_MAX:(i + 1) * T_MAX],
-    #             total_loss,
-    #             states.shift_states,
-    #             states.wkv_states,
-    #             token_amount,
-    #             # use_reentrant=False
-    #         )
-    #         states = BlockStateList(new_shift_states, new_wkv_states)
-    #         # if total_loss.isnan().all():
-    #         #     import transformers
-    #         #     tokenizer = transformers.PreTrainedTokenizerFast(tokenizer_file="20B_tokenizer.json")
-    #         #     pdb.set_trace()
-    #     # pdb.set_trace()
-    #     total_loss, new_shift_states, new_wkv_states, token_amount = checkpointed_step(
-    #         idx[:, i * T_MAX:(i + 1) * T_MAX],
-    #         targets[:, i * T_MAX:(i + 1) * T_MAX],
-    #         total_loss,
-    #         states.shift_states,
-    #         states.wkv_states,
-    #         token_amount
-    #     )
-    #     # pdb.set_trace()
-    #     return total_loss
+
+        token_amount = 0
+        i = 0
+        for i in range(math.ceil(T / T_MAX)-1):
+            total_loss,new_shift_states, new_wkv_states = torch_checkpoint(
+                checkpointed_step,
+                idx[:, i * T_MAX:(i + 1) * T_MAX],
+                states.shift_states,
+                states.wkv_states)
+            states = BlockStateList(new_shift_states, new_wkv_states)
+
+
+
+        return logits
+
 
 
 

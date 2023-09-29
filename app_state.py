@@ -7,8 +7,8 @@ import requests
 from bottle import route, run, template, request
 import torch
 import gc
-ctx_parts = 16
-ctx_len = 4096
+ctx_parts = 8
+ctx_len = 2048
 os.environ['RWKV_PARTS'] = str(ctx_parts)
 os.environ['RWKV_STATE'] = "1" #开启后编译WKV_STATE的cuda kernal
 os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
@@ -38,15 +38,15 @@ origin_model = RWKV(f"{local_path}/resources/train-results/oneline/save-200.pth"
              accelerator =  "gpu",
              devices =  1,
              precision = "bf16",
-             grad_cp = 0,
+             grad_cp = 1,
              accumulate_grad_batches = 1,
-             strategy = "deepspeed_stage_2_offload",
+             strategy = "deepspeed_stage_1_offload",
              lora = False,
              # lora_r = 16,
              # lora_alpha = 32,
              # lora_dropout = 0.01,
              # lora_parts = "ffn",
-             ctx_parts = None,
+             ctx_parts = 64,
              weight_decay=0,
              my_pos_emb = 0,
              tiny_att_dim=0,
@@ -92,7 +92,18 @@ def train_sft():
     return {"loss": losses}
 
 
-train_sft()
+m = model.training_step((torch.tensor([[x for x in range(64)]]).to('cuda'),
+                         torch.tensor([[x for x in range(1,65)]]).to('cuda'),
+                         torch.tensor([[1 for x in range(64)]]).to('cuda')),
+                        None)
+loss = m.item()
+
+try:
+    model.backward(m)
+    model.step()
+    print(f"\n-->loss->{loss}")
+except:
+    print("=error===",)
 
 # @route('/inference/by-org', method='POST')
 # def inference_by_org():

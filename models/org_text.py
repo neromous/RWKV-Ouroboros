@@ -178,7 +178,7 @@ def inference_with_state(model,
                          alpha_frequency =  0.45,
                          alpha_presence =  0.45,
                          alpha_decay =  0.996,
-                         token_ban =  [0,46],
+                         token_ban =  [0],
                          token_stop = [65535],
                          token_count =  256,
                          callback=True,
@@ -189,18 +189,16 @@ def inference_with_state(model,
     #print("======",tokens)
     # remove end
     out_str = ""
-    init_state = None
     occurrence = {}
     alpha_presence = 0.45
     alpha_frequency = 0.45
     alpha_decay = 0.996
 
     for token in tqdm(tokens):
-        init_out, init_state = model.inference_with_state(token, init_state)
+        logits, state = model.inference_with_state(token, state)
     #print("==init_state==",init_state)
     all_tokens = []
     out_last = 0
-    logits, state = init_out, init_state.clone()
     for i in range(token_count):
         for n in token_ban:
             logits[n] = -float('inf')
