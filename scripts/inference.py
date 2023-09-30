@@ -1,4 +1,5 @@
 import requests
+m = requests.post("http://0.0.0.0:3000/inference/load-model",json={})
 
 m = requests.post("http://0.0.0.0:3000/state/reset",json={})
 print(m.json())
@@ -29,7 +30,7 @@ data = [{"text":"Question: “碟形世界”这本小说中有哪些人物出�
          "role":"user",
          "token_count":0,
          "over":True},
-        {"text":"Answer: ",
+        {"text":"Answer: “碟形世界”这本小说中有哪些人物出场了?",
          "role":"robot",
          "token_count":512,
          "temperature": 0.2,
@@ -38,7 +39,7 @@ data = [{"text":"Question: “碟形世界”这本小说中有哪些人物出�
          "token_stop":[0],
          "over":False}]
 
-m = requests.post("http://0.0.0.0:3000/inference/generate",
+m = requests.post("http://0.0.0.0:3000/inference/generate-no-state",
                   json={"messages" : data})
 
 print(m.json())

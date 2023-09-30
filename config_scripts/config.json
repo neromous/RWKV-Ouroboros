@@ -2,14 +2,14 @@
   "model_path": "/home/neromous/Documents/blackfog/resources/train-results/oneline/save-200.pth",
   "model_name": "",
   "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
-  "debug" : true,
+  "debug" : false,
   "infctx_on": false,
   "infctx_type":"wani-boat",
   "model": {
     "n_embd": 2560,
     "n_layer": 32,
     "vocab_size": 65536,
-    "ctx_len": 2048
+    "ctx_len": 6144
   },
   "lora":false,
   "lora_config":{
@@ -19,6 +19,11 @@
     "parts": ["att", "ln", "time"],
     "layers": null
   },
+  "trainer": {
+    "warmup_steps" : 8,
+    "grad_cp" : 1,
+    "ctx_parts" : 12
+    },
   "environ": {
     "RWKV_JIT_ON": "1",
     "RWKV_T_MAX":  2048,
@@ -30,14 +35,8 @@
   },
   "role": {
     "master": {
-      "prefix": [
-        65530,
-        65532
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65532],
+      "postfix": [65535,261]
     },
     "other": {
       "prefix": [],
@@ -45,68 +44,34 @@
     },
 
     "system": {
-      "prefix": [
-        65530,
-        65531
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65531],
+      "postfix": [65535,261]
     },
     "user": {
-      "prefix": [
-        65530,
-        65532
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65532],
+      "postfix": [65535,261]
     },
     "think": {
-      "prefix": [
-        65530,
-        65533
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65533],
+      "postfix": [65535,261]
     },
     "robot": {
-      "prefix": [
-        65530,
-        65534
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65534],
+      "postfix": [65535,261]
     },
     "book": {
       "prefix": [],
-      "postfix": [
-        261
-      ]
+      "postfix": [261]
     },
     "claude": {
       "prefix": [65530,65534],
-      "postfix": [65535,
-                  261]
+      "postfix": [65535,261]
     },
     "text": {
       "prefix": [],
-      "postfix": [
-                261
-      ]
+      "postfix": []
     }
   },
-  "trainer": {
-    "warmup_steps" : 8,
-    "grad_cp" : 1,
-    "ctx_parts" : 16
-    },
   "inference": {
     "prompt_config": {
       "temperature": 0.1,
@@ -116,10 +81,7 @@
       "alpha_presence": 0.45,
       "alpha_decay": 0.996,
       "token_ban": [],
-      "token_stop": [
-        0,
-        65535
-      ],
+      "token_stop": [0,65535],
       "chunk_len": 128,
       "token_count": 256,
       "over": true
