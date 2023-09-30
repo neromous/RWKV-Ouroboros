@@ -123,65 +123,156 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
                 gu = torch.sum(gu, dim=0)
                 return (None, None, None, gw, gu, gk, gv, glast_state)
 else:
-    wkv_cuda = load(name=f"wkv_{T_MAX}", sources=["cuda_state/wkv_op.cpp",
-                                                  "cuda_state/wkv_cuda.cu"],
-                    verbose=True,
-                    extra_cuda_cflags=["-res-usage",
-                                       "--maxrregcount 60",
-                                       "--use_fast_math", "-O3", "-Xptxas -O3",
-                                       "--extra-device-vectorization",
-                                       f"-DTmax={T_MAX}"])
-    class WKV(torch.autograd.Function):
-        @staticmethod
-        def forward(ctx, B, T, C, w, u, k, v):
-            ctx.B = B
-            ctx.T = T
-            ctx.C = C
-            assert T <= T_MAX
-            assert B * C % min(C, 32) == 0
-            if "32" in os.environ["RWKV_FLOAT_MODE"]:
-                w = -torch.exp(w.contiguous())
-                u = u.contiguous()
-                k = k.contiguous()
-                v = v.contiguous()
-            else:
-                w = -torch.exp(w.float().contiguous())
-                u = u.float().contiguous()
-                k = k.float().contiguous()
-                v = v.float().contiguous()
-            y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format)
-            wkv_cuda.forward(B, T, C, w, u, k, v, y)
-            ctx.save_for_backward(w, u, k, v, y)
-            if "32" in os.environ["RWKV_FLOAT_MODE"]:
-                return y
-            elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
-                return y.half()
-            elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
-                return y.bfloat16()
-        @staticmethod
-        def backward(ctx, gy):
-            B = ctx.B
-            T = ctx.T
-            C = ctx.C
-            assert T <= T_MAX
-            assert B * C % min(C, 32) == 0
-            w, u, k, v, y = ctx.saved_tensors
-            gw = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
-            gu = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
-            gk = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
-            gv = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
-            if "32" in os.environ["RWKV_FLOAT_MODE"]:
-                wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.contiguous(), gw, gu, gk, gv)
-            else:
-                wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.float().contiguous(), gw, gu, gk, gv)
-            gw = torch.sum(gw, dim=0)
-            gu = torch.sum(gu, dim=0)
-            if "32" in os.environ["RWKV_FLOAT_MODE"]:
-                return (None, None, None, gw, gu, gk, gv)
-            elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
-                return (None, None, None, gw.half(), gu.half(), gk.half(), gv.half())
-            elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
-                return (None, None, None, gw.bfloat16(), gu.bfloat16(), gk.bfloat16(), gv.bfloat16())
+    if os.environ.get("RWKV_STATE"):
+        wkv_cuda = load(name=f"wkv_{T_MAX}",
+                        sources=["cuda_state/wkv_op_state.cpp",
+                                 "cuda_state/wkv_cuda_state.cu"],
+                        verbose=True,
+                        extra_cuda_cflags=["-res-usage",
+                                           "--maxrregcount 60",
+                                           "--use_fast_math",
+                                           "-O3", "-Xptxas -O3",
+                                           "--extra-device-vectorization", f"-DTmax={T_MAX}"])
+        class WKV_STATE(torch.autograd.Function):
+            @staticmethod
+            def init_state(B, C):
+                state = torch.zeros((B, C, 3), device='cuda')
+                state[:,:,2] = -1e38
+                return state.cuda()
+
+            @staticmethod
+            def forward(ctx, B, T, C, w, u, k, v,last_state):
+                ctx.B = B
+                ctx.T = T
+                ctx.C = C
+                assert T <= T_MAX
+                assert B * C % min(C, 32) == 0
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    w = -torch.exp(w.contiguous())
+                    u = u.contiguous()
+                    k = k.contiguous()
+                    v = v.contiguous()
+                else:
+                    w = -torch.exp(w.float().contiguous())
+                    u = u.float().contiguous()
+                    k = k.float().contiguous()
+                    v = v.float().contiguous()
+                last_state = last_state.contiguous()
+                y = torch.empty((B, T, C),
+                                device=w.device,
+                                memory_format=torch.contiguous_format)
+                new_state = torch.empty((B, C, 3),
+                                        device=w.device,
+                                        memory_format=torch.contiguous_format,
+                                        dtype=torch.float32)
+                wkv_cuda.forward(B, T, C, w, u, k, v, last_state, y,new_state)
+                ctx.save_for_backward(w, u, k, v, y,last_state)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    return y,new_state
+                elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
+                    return y.half(),new_state
+                elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
+                    return y.bfloat16(),new_state
+            @staticmethod
+            def backward(ctx, gy,gnew_state):
+                B = ctx.B
+                T = ctx.T
+                C = ctx.C
+                assert T <= T_MAX
+                assert B * C % min(C, 32) == 0
+                w, u, k, v, y, last_state = ctx.saved_tensors
+                gw = torch.empty((B, C),
+                                 device=gy.device,
+                                 memory_format=torch.contiguous_format)
+                gu = torch.empty((B, C),
+                                 device=gy.device,
+                                 memory_format=torch.contiguous_format)
+                gk = torch.empty((B, T, C),
+                                 device=gy.device,
+                                 memory_format=torch.contiguous_format)
+                gv = torch.empty((B, T, C),
+                                 device=gy.device,
+                                 memory_format=torch.contiguous_format)
+                glast_state = torch.empty((B, C, 3),
+                                          device=w.device,
+                                          memory_format=torch.contiguous_format,
+                                          dtype=torch.float32)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    wkv_cuda.backward(B, T, C, w, u, k, v,last_state, y,
+                                      gy.contiguous(),gnew_state.contiguous(),
+                                      gw, gu, gk, gv, glast_state)
+                else:
+                    wkv_cuda.backward(B, T, C, w, u, k, v, last_state,y,
+                                      gy.float().contiguous(),gnew_state.contiguous(),
+                                      gw, gu, gk, gv, glast_state)
+                gw = torch.sum(gw, dim=0)
+                gu = torch.sum(gu, dim=0)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    return (None, None, None, gw, gu, gk, gv, glast_state)
+                elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
+                    return (None, None, None, gw.half(), gu.half(), gk.half(), gv.half(), glast_state)
+                elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
+                    return (None, None, None, gw.bfloat16(), gu.bfloat16(), gk.bfloat16(), gv.bfloat16(), glast_state)
+    else:
+        wkv_cuda = load(name=f"wkv_{T_MAX}", sources=["cuda_state/wkv_op.cpp",
+                                                      "cuda_state/wkv_cuda.cu"],
+                        verbose=True,
+                        extra_cuda_cflags=["-res-usage",
+                                           "--maxrregcount 60",
+                                           "--use_fast_math", "-O3", "-Xptxas -O3",
+                                           "--extra-device-vectorization",
+                                           f"-DTmax={T_MAX}"])
+        class WKV(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, B, T, C, w, u, k, v):
+                ctx.B = B
+                ctx.T = T
+                ctx.C = C
+                assert T <= T_MAX
+                assert B * C % min(C, 32) == 0
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    w = -torch.exp(w.contiguous())
+                    u = u.contiguous()
+                    k = k.contiguous()
+                    v = v.contiguous()
+                else:
+                    w = -torch.exp(w.float().contiguous())
+                    u = u.float().contiguous()
+                    k = k.float().contiguous()
+                    v = v.float().contiguous()
+                y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format)
+                wkv_cuda.forward(B, T, C, w, u, k, v, y)
+                ctx.save_for_backward(w, u, k, v, y)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    return y
+                elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
+                    return y.half()
+                elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
+                    return y.bfloat16()
+            @staticmethod
+            def backward(ctx, gy):
+                B = ctx.B
+                T = ctx.T
+                C = ctx.C
+                assert T <= T_MAX
+                assert B * C % min(C, 32) == 0
+                w, u, k, v, y = ctx.saved_tensors
+                gw = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
+                gu = torch.empty((B, C), device=gy.device, memory_format=torch.contiguous_format)
+                gk = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
+                gv = torch.empty((B, T, C), device=gy.device, memory_format=torch.contiguous_format)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.contiguous(), gw, gu, gk, gv)
+                else:
+                    wkv_cuda.backward(B, T, C, w, u, k, v, y, gy.float().contiguous(), gw, gu, gk, gv)
+                gw = torch.sum(gw, dim=0)
+                gu = torch.sum(gu, dim=0)
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    return (None, None, None, gw, gu, gk, gv)
+                elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
+                    return (None, None, None, gw.half(), gu.half(), gk.half(), gv.half())
+                elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
+                    return (None, None, None, gw.bfloat16(), gu.bfloat16(), gk.bfloat16(), gv.bfloat16())
 
 
 if os.environ.get("RWKV_PARTS"): #内部切分片段，不暴露state接口。
@@ -550,7 +641,7 @@ class RWKV(nn.Module):
         torch.cuda.empty_cache()
 
 
-    def configure_optimizers(self):
+    def get_optimizers(self):
         lr_init= self.lr_init
         lr_1x = set()
         lr_2x = set()
@@ -663,9 +754,19 @@ class RWKV(nn.Module):
         return x
 
 
-    def training_step(self, batch, batch_idx):
-        args = self.args
-        idx, targets, mask = batch
+    def training_step(self, batch, **kwargs):
+        # args = self.args
+        seq = batch['input_ids']
+        mask = batch.get('attention_mask',None)
+        idx = seq[:-1]
+        targets = seq[1:]
+        if mask == None:
+            mask = [int(x!=0) for x in idx]
+        idx = torch.tensor([idx],dtype=torch.long).to('cuda')
+        targets = torch.tensor([targets],dtype=torch.long).to('cuda')
+        mask = torch.tensor([mask],dtype=torch.float32).to('cuda')
+
+        # idx, targets, mask = batch
         mask = mask.view(-1)
         sum_mask = torch.sum(mask).item()
         # if sum_mask == 0:
@@ -704,38 +805,3 @@ class RWKV(nn.Module):
             #gc.collect()
             #torch.cuda.empty_cache()
             return x
-
-    @classmethod
-    def sample_logits(cls,
-                      logits:torch.tensor,
-                      temperature=0.1,
-                      top_p=0.1, top_k=0):
-        probs = F.softmax(logits.float(), dim=-1)
-        top_k = int(top_k)
-        if probs.device == torch.device('cpu'):
-            probs = probs.numpy()
-            sorted_ids = np.argsort(probs)
-            sorted_probs = probs[sorted_ids][::-1]
-            cumulative_probs = np.cumsum(sorted_probs)
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            probs = probs / np.sum(probs)
-            out = np.random.choice(a=len(probs), p=probs)
-            return int(out)
-        else:
-            sorted_ids = torch.argsort(probs)
-            sorted_probs = probs[sorted_ids]
-            sorted_probs = torch.flip(sorted_probs, dims=(0,))
-            cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            out = torch.multinomial(probs, num_samples=1)[0]
-            return int(out)

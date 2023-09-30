@@ -19,6 +19,12 @@
     "parts": ["att", "ln", "time"],
     "layers": null
   },
+  "trainer": {
+    "warmup_steps" : 8,
+    "grad_cp" : 1,
+    "ctx_parts" : 4
+    },
+
   "environ": {
     "RWKV_JIT_ON": "1",
     "RWKV_T_MAX":  2048,
@@ -102,11 +108,6 @@
       ]
     }
   },
-  "trainer": {
-    "warmup_steps" : 8,
-    "grad_cp" : 1,
-    "ctx_parts" : 16
-    },
   "inference": {
     "prompt_config": {
       "temperature": 0.1,

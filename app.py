@@ -24,7 +24,13 @@ if config['infctx_on']:
         from rwkv_model.model import RWKV
         ds_config =  "./bf16_config.config"
 else:
-    from rwkv_model.model_origin import RWKV
+    ctx_parts =  config['trainer']['ctx_parts']
+    ctx_len = config['model']['ctx_len']
+    os.environ['RWKV_PARTS'] = str(ctx_parts)
+    os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE'] #开启后编译WKV_STATE的cuda kernal
+    os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
+
+    from rwkv_model.model_lora import RWKV
     if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
         ds_config =  "./fp32_ds_config.config"
     elif config['environ']['RWKV_FLOAT_MODE'] == "fp16":

@@ -662,11 +662,7 @@ class RWKV(nn.Module):
                                          lr=lr_init,
                                          betas=(self.beta1, self.beta2),
                                          eps=self.adam_eps,
-                                         bias_correction=True,
-                                         #adamw_mode=self.adamw_mode,
-                                         weight_decay=self.weight_decay,
-                                         amsgrad=False
-                                         )
+                                         bias_correction=True)
         lr_scheduler = None
         if self.warmup_steps > 0:
             lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
