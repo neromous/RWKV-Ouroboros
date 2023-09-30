@@ -73,8 +73,8 @@ class Scene(Model):
         tokens = self.prefix_token + tokens + self.postfix_token
         tokens = [x for x in tokens if self.is_valid_token(x)]
         while len(tokens) > 0:
-            output = tokens[ctx:]
-            tokens = tokens[ctx-window:]
+            output = tokens[:ctx_len]
+            tokens = tokens[ctx_len - window:]
             yield output
 
 

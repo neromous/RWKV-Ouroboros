@@ -6,12 +6,8 @@ import json
 from tqdm import tqdm
 import random
 import types
-
-def load_config() -> dict:
-    with open("./config.json", "r", encoding="utf-8") as f:
-        text = f.read()
-    res = json.loads(text)
-    return res
+from utils import log, load_config
+config = load_config()
 
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 config = load_config()

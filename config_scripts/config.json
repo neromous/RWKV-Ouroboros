@@ -2,14 +2,14 @@
   "model_path": "/home/neromous/Documents/blackfog/resources/train-results/oneline/save-200.pth",
   "model_name": "",
   "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
-  "debug" : true,
+  "debug" : false,
   "infctx_on": false,
   "infctx_type":"wani-boat",
   "model": {
     "n_embd": 2560,
     "n_layer": 32,
     "vocab_size": 65536,
-    "ctx_len": 2048
+    "ctx_len": 6144
   },
   "lora":false,
   "lora_config":{
@@ -22,9 +22,8 @@
   "trainer": {
     "warmup_steps" : 8,
     "grad_cp" : 1,
-    "ctx_parts" : 4
+    "ctx_parts" : 12
     },
-
   "environ": {
     "RWKV_JIT_ON": "1",
     "RWKV_T_MAX":  2048,

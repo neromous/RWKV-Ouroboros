@@ -1,0 +1,18 @@
+nohup: ignoring input
+[2023-09-30 14:42:24,600] [WARNING] [runner.py:190:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-09-30 14:42:24,620] [INFO] [runner.py:540:main] cmd = /home/neromous/.minicoda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMV19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed 2
+[2023-09-30 14:42:27,143] [INFO] [launch.py:229:main] WORLD INFO DICT: {'localhost': [1]}
+[2023-09-30 14:42:27,143] [INFO] [launch.py:235:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-09-30 14:42:27,143] [INFO] [launch.py:246:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-09-30 14:42:27,143] [INFO] [launch.py:247:main] dist_world_size=1
+[2023-09-30 14:42:27,143] [INFO] [launch.py:249:main] Setting CUDA_VISIBLE_DEVICES=1
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu118 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu118/wkv_512/build.ninja...
+Building extension module wkv_512...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv_512...
+[2023-09-30 14:42:42,175] [INFO] [launch.py:428:sigkill_handler] Killing subprocess 1206698
+[2023-09-30 14:42:42,177] [ERROR] [launch.py:434:sigkill_handler] ['/home/neromous/.minicoda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed', '2'] exits with return code = -15

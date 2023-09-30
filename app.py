@@ -5,6 +5,7 @@ import gc
 import deepspeed
 import json
 from bottle import route, run, template, request
+import random
 config = load_config()
 #===============pico 配置项=================
 os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
@@ -15,7 +16,7 @@ if config['infctx_on']:
         ctx_parts =  config['trainer']['ctx_parts']
         ctx_len = config['model']['ctx_len']
         os.environ['RWKV_PARTS'] = str(ctx_parts)
-        os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE'] #开启后编译WKV_STATE的cuda kernal
+        os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
         os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
         ds_config =  "./stage1_offload_ds_config.config"
         from rwkv_model.model_state import RWKV
@@ -24,10 +25,10 @@ if config['infctx_on']:
         from rwkv_model.model import RWKV
         ds_config =  "./bf16_config.config"
 else:
-    ctx_parts =  config['trainer']['ctx_parts']
+    ctx_parts = config['trainer']['ctx_parts']
     ctx_len = config['model']['ctx_len']
     os.environ['RWKV_PARTS'] = str(ctx_parts)
-    os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE'] #开启后编译WKV_STATE的cuda kernal
+    os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
     os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
 
     from rwkv_model.model_lora import RWKV
@@ -37,16 +38,19 @@ else:
         ds_config =  "./fp16_ds_config.config"
     elif config['environ']['RWKV_FLOAT_MODE'] == "bf16":
         ds_config =  "./bf16_ds_config.config"
+
 from rwkv_model.model_infer import RWKV_RNN
 from models.scene import Scene
 from models.page import Page
 from utils import save_data
 from models.inference_helper import InferenceWithState
+from models.org_text import DataNode,file_to_node,text_to_node
 import copy
 from tqdm import tqdm
 
 model = RWKV(load_model=config['model_path'],
              n_layer= config['model']['n_layer'],
+             ctx_len= config['model']['ctx_len'],
              n_embd= config['model']['n_embd'],
              vocab_size = config['model']['vocab_size'],
              grad_cp = config['trainer']['grad_cp'],
@@ -126,20 +130,44 @@ def inference_generate():
         resp.append(msg.json())
     return {"messages": resp}
 
+@route('/inference/generate-no-state', method='POST')
+def inference_generate():
+    global inferencer
+    item = request.json
+    messages = item.get('messages',[])
+    resp = []
+    for message in messages:
+        msg = inferencer.scene.add_message(message)
+        msg = inferencer.generate_no_state(model, msg)
+        msg.save()
+        resp.append(msg.json())
+    return {"messages": resp}
+
+
 
 @route('/train/save-weight', method='POST')
 def save_weight():
-    global model_engine
+    global model_engine,model
     item = request.json
-    model_engine.to(torch.device('cpu'))
-    torch.save(model_engine.module.state_dict(), "save.pth")
-    model_engine.to(torch.device('cuda'))
+    model_name = item.get("model_name","default")
+    gc.collect()
+    torch.cuda.empty_cache()
+    model.load_state_dict(model_engine.module.state_dict())
+    # ===============save=================
+    torch.save(model.state_dict(),
+               f"/home/neromous/Documents/blackfog/resources/train-results/oneline/{model_name}.pth")
+    print("===saveved====")
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"response": "model save"}
 
 @route('/train/tx-data', method='POST')
 def train():
-    global model_engine
+    global model_engine, ctx_len
     item = request.json
+    gc.collect()
+    torch.cuda.empty_cache()
+
     # parse
     if type(item) == dict:
         train_data = Scene.new(item)
@@ -149,11 +177,13 @@ def train():
     total = 0
     mean_loss = 0
     i = 0
-    data_iter = train_data.yield_tokens(ctx_len=2048,window=512)
+    window = 1024
+    data_iter = train_data.yield_tokens(ctx_len=ctx_len, window=window)
     for token in data_iter:
         i += 1
         batch = {"input_ids": token,
                  "attention_mask": None}
+        print(batch)
         m = model_engine.training_step(batch, model_engine=model_engine)
         loss = m.item()
         total += loss
@@ -165,25 +195,43 @@ def train():
 
 @route('/train/token', method='POST')
 def train_token():
-    global model_engine
+    global model_engine, ctx_len
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
     input_ids = item['input_ids']
     attention_mask = item.get('attention_mask',None)
-    batch = { "input_ids": torch.tensor([input_ids],dtype=torch.long).to('cuda'),
-              "attention_mask": torch.tensor([attention_mask],dtype=torch.bfloat16).to('cuda')}
-    m = model_engine.training_step(batch,model_engine=model_engine)
-    loss = m.item()
-    print("->", loss)
-    model_engine.backward(m)
-    model_engine.step()
+    if attention_mask == None:
+        attention_mask = [1 for x in input_ids]
+    assert len(input_ids) == len(attention_mask)
+    assert len(input_ids) > 0
+    window = 1024
+    losses = []
+    while len(input_ids) > 0:
+        output = input_ids[:ctx_len]
+        masks = masks[:ctx_len]
+        input_ids = input_ids[ctx_len - window:]
+        attention_mask = attention_mask[ctx_len - window:]
+
+        batch = { "input_ids": output,
+                  "attention_mask": masks}
+        m = model_engine.training_step(batch,model_engine=model_engine)
+        loss = m.item()
+        losses.append(loss)
+        print("->", loss)
+        model_engine.backward(m)
+        model_engine.step()
     # save_data(item)
-    return {"loss": loss}
+    return {"loss": losses}
 
 
 @route('/train/by-org-text', method='POST')
 def train_by_org_text():
     global model_engine
     item = request.json
+    gc.collect()
+    torch.cuda.empty_cache()
+
     text = item['org']
     coll = Page.org_parser(text)
     train_data_set = []
@@ -197,40 +245,59 @@ def train_by_org_text():
     for train_data in tqdm(train_data_set):
         batch = {"input_ids": train_data.tensor.to('cuda'),
                  "attention_mask": None}
-        m = model_engine.training_step(batch,
-                                       model_engine=model_engine)
+        m = model_engine.training_step(batch, model_engine=model_engine)
         loss = m.item()
-        print("->", loss)
-        losses.append(loss)
         model_engine.backward(m)
         model_engine.step()
+        #
+        print("->", loss)
+        losses.append(loss)
+
     # save_data(item)
     return {"loss": losses}
 
 
 @route('/train/sft', method='POST')
 def train_sft():
-    global model_engine
+    global  model_engine, ctx_len
+    rnn_model = None
+    gc.collect()
+    torch.cuda.empty_cache()
     item = request.json
-    coll = Page.from_org('./data/sft.org')
-    train_data_set = []
-    for nodes in coll:
-        cache = nodes[0]
-        for node in nodes[1:]:
-            cache = cache + node
-        train_data_set.append(cache)
+    coll = file_to_node('./data/sft.org')
     losses = []
-    for train_data in tqdm(train_data_set):
-        batch = {"input_ids": train_data.tensor.to('cuda'),
-                 "attention_mask": None}
-        m = model_engine.training_step(batch,model_engine=model_engine)
-        loss = m.item()
-        print("->", loss)
-        losses.append(loss)
-        model_engine.backward(m)
-        model_engine.step()
-    # save_data(item)
-    return {"loss": losses}
+    total_loss = 0
+    mean_loss = 0
+    datasets = []
+    for k,v in coll.items():
+        datasets.append(v)
+    start = datasets[0]
+    end = datasets[1:]
+    random.shuffle(end)
+    datasets = [start] + end
+    i = 0
+    window = 1024
+    for v in datasets:
+        for token in v.yield_train_data(req_len=ctx_len,window=window):
+            i += 1
+            print("====", token)
+            batch = { "input_ids": token,
+                      "attention_mask": None}
+            m = model_engine.training_step(batch)
+            loss = m.item()
+            losses.append(loss)
+            model_engine.backward(m)
+            model_engine.step()
+            # 计算loss
+            total_loss += loss
+            mean_loss = total_loss / i
+            losses.append(mean_loss)
+            print(f"-> item_loss {loss} batch_loss {mean_loss}")
+    gc.collect()
+    torch.cuda.empty_cache()
+    return {"loss": mean_loss}
+
+
 
 
 if config['debug'] :
@@ -242,7 +309,7 @@ if config['debug'] :
     pass
 
     print("===train test start==")
-    train_data = [x for x in range(0,1024)]
+    train_data = [x for x in range(0,6144)]
     batch = {"input_ids": train_data,
              "attention_mask": None}
     m = model_engine.training_step(batch, model_engine=model_engine)
@@ -265,7 +332,7 @@ if config['debug'] :
     gc.collect()
     torch.cuda.empty_cache()
 
-    train_data = [x for x in range(0,1024)]
+    train_data = [x for x in range(0,6144)]
     batch = {"input_ids": train_data,
              "attention_mask": None}
     m = model_engine.training_step(batch, model_engine=model_engine)
