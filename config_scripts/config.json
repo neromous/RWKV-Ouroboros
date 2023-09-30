@@ -1,5 +1,5 @@
 {
-  "model_path": "/home/neromous/Documents/blackfog/resources/train-results/oneline/save-200.pth",
+  "model_path": "/home/neromous/Documents/blackfog/resources/train-results/oneline/default.pth",
   "model_name": "",
   "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
   "debug" : false,
@@ -9,7 +9,7 @@
     "n_embd": 2560,
     "n_layer": 32,
     "vocab_size": 65536,
-    "ctx_len": 6144
+    "ctx_len": 4096
   },
   "lora":false,
   "lora_config":{
@@ -22,7 +22,10 @@
   "trainer": {
     "warmup_steps" : 8,
     "grad_cp" : 1,
-    "ctx_parts" : 12
+    "window" : 1024,
+    "min_loss_fix":0.125,
+    "max_loss_fix":1.125,
+    "ctx_parts" : 8
     },
   "environ": {
     "RWKV_JIT_ON": "1",
