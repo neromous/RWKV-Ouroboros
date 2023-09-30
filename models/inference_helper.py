@@ -14,9 +14,6 @@ from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 
 
-
-
-
 def sample_logits(logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
     probs = F.softmax(logits.float(), dim=-1)
     top_k = int(top_k)
@@ -105,7 +102,7 @@ class InferenceWithState:
         tokens = [x for x in tokens if cls.is_valid_token(x)]
         return tokenizer.decode(tokens)
 
-    def generate(self,model,message:Message,callback=my_func):
+    def generate(self,model,message:Message,callback=my_func,state=None):
         tokens = message.to_tokens()
         token_count = message.token_count
         token_ban = message.token_ban
@@ -117,11 +114,11 @@ class InferenceWithState:
         alpha_decay = message.alpha_decay
         out_str = ""
         occurrence = {}
-        logits= []
+        logits= None
         all_tokens = []
         out_last = 0
         for token in tokens:
-            logits , self.state = model(token, self.state)
+            logits , state = model(token, state)
         for i in range(0,token_count):
             for n in token_ban:
                 logits[n] = -float('inf')
@@ -145,10 +142,10 @@ class InferenceWithState:
                 print(text, end="", flush=True)
                 out_str += text
                 out_last = i + 1
-            logits, self.state = model(token, self.state)
+            logits, state = model(token, state)
         message.generated =  True
         message.response = out_str
-        return message
+        return message, state
 
     def generate_no_state(self, model,message:Message,callback=my_func):
         tokens = message.tokens

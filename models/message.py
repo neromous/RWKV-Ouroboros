@@ -36,7 +36,10 @@ class Message(Model):
 
     def to_tokens(self) -> list:
         text = self.prefix + self.text + self.postfix
-        tokens = self.encode(text)
+        if len(self.text) !=0:
+            tokens = self.encode(text)
+        else:
+            tokens = self.tokens
         # 采用token的方式直接增加special token 避免分词不精确
         token_prefix = self.get_special_token(self.role, "prefix")
         self.prefix_token = token_prefix
@@ -46,7 +49,7 @@ class Message(Model):
             tokens = token_prefix + tokens + token_postfix
         else:
             tokens = token_prefix + tokens
-        _tokens = []
+        #_tokens = []
         return tokens
 
     def load_file(self,path):

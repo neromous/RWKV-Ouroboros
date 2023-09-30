@@ -69,70 +69,76 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
 
 inferencer = InferenceWithState()
 rwkv_rnn = None
-
+state = None
+init_state = None
 
 @route('/inference/load-model', method='POST')
 def load_model():
-    global inferencer, model_engine,rwkv_rnn
+    global inferencer, model_engine,rwkv_rnn,state, init_state
     item = request.json
     gc.collect()
     torch.cuda.empty_cache()
     rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
+    state = None
+    init_state = None
     return {"response": "model save"}
-
 
 @route('/inference/remove-model', method='POST')
 def remove_model():
     global inferencer
     item = request.json
     rwkv_rnn = None
+    state = None
+    init_state = None
     gc.collect()
     torch.cuda.empty_cache()
     return {"response": "model save"}
 
-
 @route('/state/init', method='POST')
 def init():
-    global inferencer,rwkv_rnn
+    global inferencer,rwkv_rnn,state,init_state
+    if rwkv_rnn == None:
+        load_model()
     item = request.json
     messages = item.get('messages',[])
     resp = []
+    state = None
+    init_state = None
     for message in messages:
         msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate(rwkv_rnn,msg)
+        msg, state = inferencer.generate(rwkv_rnn,msg,state=state)
         msg.save()
         resp.append(msg.json())
-    inferencer.set_init_state()
-    print(inferencer.state)
-    print(inferencer.init_state)
+    init_state = copy.deepcopy(state)
     return {"messages": resp}
-
 
 @route('/state/reset', method='POST')
 def reset_state():
-    global inferencer
+    global inferencer, state, init_state
     print(inferencer.state)
     print(inferencer.init_state)
-    inferencer.reset_state()
+    state = copy.deepcopy(init_state)
     return {"messages": 'reset'}
 
 
 @route('/inference/generate', method='POST')
 def inference_generate():
-    global inferencer,rwkv_rnn
+    global inferencer,rwkv_rnn, state
+    if rwkv_rnn == None:
+        load_model()
     item = request.json
     messages = item.get('messages',[])
     resp = []
     for message in messages:
         msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate(rwkv_rnn,msg)
+        msg, state = inferencer.generate(rwkv_rnn, msg, state=state)
         msg.save()
         resp.append(msg.json())
     return {"messages": resp}
 
 @route('/inference/generate-no-state', method='POST')
-def inference_generate():
-    global inferencer
+def inference_generate_no_state():
+    global inferencer,model
     item = request.json
     messages = item.get('messages',[])
     resp = []
@@ -144,7 +150,6 @@ def inference_generate():
     return {"messages": resp}
 
 
-
 @route('/train/save-weight', method='POST')
 def save_weight():
     global model_engine,model
@@ -154,26 +159,24 @@ def save_weight():
     torch.cuda.empty_cache()
     model.load_state_dict(model_engine.module.state_dict())
     # ===============save=================
-    torch.save(model.state_dict(),
-               f"/home/neromous/Documents/blackfog/resources/train-results/oneline/{model_name}.pth")
+    fpath = f"/home/neromous/Documents/blackfog/resources/train-results/oneline/{model_name}.pth"
+    torch.save(model.state_dict(),fpath)
     print("===saveved====")
     gc.collect()
     torch.cuda.empty_cache()
     return {"response": "model save"}
 
 @route('/train/tx-data', method='POST')
-def train():
+def train_tx_data():
     global model_engine, ctx_len
     item = request.json
     gc.collect()
     torch.cuda.empty_cache()
-
     # parse
     if type(item) == dict:
         train_data = Scene.new(item)
     else:
         return {"message": "failed for unvalid data, request should be a dict"}
-
     total = 0
     mean_loss = 0
     i = 0
@@ -183,7 +186,6 @@ def train():
         i += 1
         batch = {"input_ids": token,
                  "attention_mask": None}
-        print(batch)
         m = model_engine.training_step(batch, model_engine=model_engine)
         loss = m.item()
         total += loss
@@ -225,38 +227,6 @@ def train_token():
     return {"loss": losses}
 
 
-@route('/train/by-org-text', method='POST')
-def train_by_org_text():
-    global model_engine
-    item = request.json
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    text = item['org']
-    coll = Page.org_parser(text)
-    train_data_set = []
-    for nodes in coll:
-        cache = nodes[0]
-        for node in nodes[1:]:
-            cache = cache + node
-        train_data_set.append(cache)
-        print(cache)
-    losses = []
-    for train_data in tqdm(train_data_set):
-        batch = {"input_ids": train_data.tensor.to('cuda'),
-                 "attention_mask": None}
-        m = model_engine.training_step(batch, model_engine=model_engine)
-        loss = m.item()
-        model_engine.backward(m)
-        model_engine.step()
-        #
-        print("->", loss)
-        losses.append(loss)
-
-    # save_data(item)
-    return {"loss": losses}
-
-
 @route('/train/sft', method='POST')
 def train_sft():
     global  model_engine, ctx_len
@@ -280,7 +250,6 @@ def train_sft():
     for v in datasets:
         for token in v.yield_train_data(req_len=ctx_len,window=window):
             i += 1
-            print("====", token)
             batch = { "input_ids": token,
                       "attention_mask": None}
             m = model_engine.training_step(batch)
@@ -298,10 +267,10 @@ def train_sft():
     return {"loss": mean_loss}
 
 
-
-
 if config['debug'] :
-    messages = [{"text" :"你好啊", "role" : "text","over":False, "token_count":128 } ]
+    messages = [{"text" :"你好啊",
+                 "role" : "text",
+                 "over":False, "token_count":128 } ]
     for message in messages:
         msg = inferencer.scene.add_message(message)
         msg = inferencer.generate_no_state(model, msg)

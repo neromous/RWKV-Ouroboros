@@ -35,14 +35,8 @@
   },
   "role": {
     "master": {
-      "prefix": [
-        65530,
-        65532
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65532],
+      "postfix": [65535,261]
     },
     "other": {
       "prefix": [],
@@ -50,61 +44,32 @@
     },
 
     "system": {
-      "prefix": [
-        65530,
-        65531
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65531],
+      "postfix": [65535,261]
     },
     "user": {
-      "prefix": [
-        65530,
-        65532
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65532],
+      "postfix": [65535,261]
     },
     "think": {
-      "prefix": [
-        65530,
-        65533
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65533],
+      "postfix": [65535,261]
     },
     "robot": {
-      "prefix": [
-        65530,
-        65534
-      ],
-      "postfix": [
-        65535,
-        261
-      ]
+      "prefix": [65530,65534],
+      "postfix": [65535,261]
     },
     "book": {
       "prefix": [],
-      "postfix": [
-        261
-      ]
+      "postfix": [261]
     },
     "claude": {
       "prefix": [65530,65534],
-      "postfix": [65535,
-                  261]
+      "postfix": [65535,261]
     },
     "text": {
       "prefix": [],
-      "postfix": [
-                261
-      ]
+      "postfix": []
     }
   },
   "inference": {
@@ -116,10 +81,7 @@
       "alpha_presence": 0.45,
       "alpha_decay": 0.996,
       "token_ban": [],
-      "token_stop": [
-        0,
-        65535
-      ],
+      "token_stop": [0,65535],
       "chunk_len": 128,
       "token_count": 256,
       "over": true
