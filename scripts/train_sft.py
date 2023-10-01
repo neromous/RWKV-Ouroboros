@@ -3,6 +3,11 @@ import requests
 
 result = {}
 
+m = requests.post("http://0.0.0.0:3000/train/sft",
+                      json={"message":"sample"})
+print(m.json())
+
+
 while result.get('loss', 2.0) > 0.5:
     m = requests.post("http://0.0.0.0:3000/train/sft",
                       json={"message":"sample"})

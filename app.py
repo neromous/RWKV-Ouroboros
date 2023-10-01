@@ -18,11 +18,11 @@ max_loss_fix = config['trainer']['max_loss_fix']
 min_loss = config['trainer']['min_loss']
 max_loss = config['trainer']['max_loss']
 proj_dir = config['proj_dir']
-
+ctx_len = config['model']['ctx_len']
+ctx_parts = config['trainer']['ctx_parts']
 if config['infctx_on']:
     if config['infctx_type'] == "wani-boat":
         ctx_parts =  config['trainer']['ctx_parts']
-        ctx_len = config['model']['ctx_len']
         os.environ['RWKV_PARTS'] = str(ctx_parts)
         os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
         os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
@@ -31,10 +31,8 @@ if config['infctx_on']:
     elif config['infctx_type'] == "pico":
         os.environ['RWKV_TORCH_COMPILE'] = config['environ']['RWKV_TORCH_COMPILE']
         from rwkv_model.model import RWKV
-        ds_config =  "./bf16_config.config"
+        ds_config =  "./bf16_ds_config.config"
 else:
-    ctx_parts = config['trainer']['ctx_parts']
-    ctx_len = config['model']['ctx_len']
     os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
     os.environ['RWKV_PARTS'] = str(ctx_parts)
     if os.environ['RWKV_PARTS']  != "0" :
