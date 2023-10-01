@@ -15,6 +15,10 @@ os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
 window =  config['trainer']['window']
 min_loss_fix = config['trainer']['min_loss_fix']
 max_loss_fix = config['trainer']['max_loss_fix']
+min_loss = config['trainer']['min_loss']
+max_loss = config['trainer']['max_loss']
+proj_dir = config['proj_dir']
+
 if config['infctx_on']:
     if config['infctx_type'] == "wani-boat":
         ctx_parts =  config['trainer']['ctx_parts']
@@ -163,7 +167,7 @@ def save_weight():
     torch.cuda.empty_cache()
     model.load_state_dict(model_engine.module.state_dict())
     # ===============save=================
-    fpath = f"/home/neromous/Documents/blackfog/resources/train-results/oneline/{model_name}.pth"
+    fpath = f"{proj_dir}/{model_name}.pth"
     torch.save(model.state_dict(),fpath)
     print("===saveved====")
     gc.collect()
@@ -191,9 +195,9 @@ def train_tx_data():
                  "attention_mask": None}
         m = model_engine.training_step(batch, model_engine=model_engine)
         loss = m.item()
-        if loss < 0.5:
+        if loss < min_loss:
             m = m * min_loss_fix
-        elif loss > 1.0:
+        elif loss > max_loss:
             m = m * max_loss_fix
         total += loss
         mean_loss = total / i
@@ -252,16 +256,16 @@ def train_sft():
     random.shuffle(end)
     datasets = [start] + end
     i = 0
-    for v in datasets:
+    for v in tqdm(datasets):
         for token in v.yield_train_data(req_len=ctx_len,window=window):
             i += 1
             batch = { "input_ids": token,
                       "attention_mask": None}
             m = model_engine.training_step(batch)
             loss = m.item()
-            if loss < 0.5:
+            if loss < min_loss:
                 m = m * min_loss_fix
-            elif loss > 1.0:
+            elif loss > max_loss:
                 m = m * max_loss_fix
             losses.append(loss)
             model_engine.backward(m)

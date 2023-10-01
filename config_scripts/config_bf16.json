@@ -1,7 +1,7 @@
 {
   "model_path": "/home/neromous/pyblackfog/rwkv-output-models/trpg/rwkv-60.pth",
   "model_name": "",
-  "proj_dir": "/home/neromous/Documents/blackfog/resources/train-results/train-output",
+  "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/trpg",
   "debug" : false,
   "infctx_on": false,
   "infctx_type":"wani-boat",
