@@ -1,6 +1,6 @@
 {
   "model_path": "/home/neromous/pyblackfog/rwkv-output-models/trpg/rwkv-60.pth",
-  "model_name": "default",
+  "model_name": "",
   "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/trpg",
   "debug" : false,
   "infctx_on": false,
@@ -22,21 +22,21 @@
   "trainer": {
     "warmup_steps" : 8,
     "grad_cp" : 1,
-    "window" : 512,
+    "window" : 1024,
+    "min_loss_fix":0.05,
     "min_loss" : 0.5,
     "max_loss" : 1.5,
-    "min_loss_fix":0.05,
     "max_loss_fix":1.05,
-    "ctx_parts" : "0"
+    "ctx_parts" : 4
     },
   "environ": {
     "RWKV_JIT_ON": "1",
     "RWKV_T_MAX":  2048,
-    "RWKV_FLOAT_MODE": "fp16",
+    "RWKV_FLOAT_MODE": "bf16",
     "RWKV_TORCH_COMPILE": "",
     "RWKV_TORCH_RUN_MODE": "torch-complie",
     "RWKV_MY_TESTING" : "",
-    "RWKV_STATE": "0"
+    "RWKV_STATE": "1"
   },
   "role": {
     "master": {

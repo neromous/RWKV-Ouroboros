@@ -11,6 +11,14 @@ config = load_config()
 os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
 os.environ['RWKV_FLOAT_MODE'] = config['environ']['RWKV_FLOAT_MODE']
 os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
+
+window =  config['trainer']['window']
+min_loss_fix = config['trainer']['min_loss_fix']
+max_loss_fix = config['trainer']['max_loss_fix']
+min_loss = config['trainer']['min_loss']
+max_loss = config['trainer']['max_loss']
+proj_dir = config['proj_dir']
+
 if config['infctx_on']:
     if config['infctx_type'] == "wani-boat":
         ctx_parts =  config['trainer']['ctx_parts']
@@ -27,9 +35,12 @@ if config['infctx_on']:
 else:
     ctx_parts = config['trainer']['ctx_parts']
     ctx_len = config['model']['ctx_len']
-    os.environ['RWKV_PARTS'] = str(ctx_parts)
     os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
-    os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
+    os.environ['RWKV_PARTS'] = str(ctx_parts)
+    if os.environ['RWKV_PARTS']  != "0" :
+        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
+    else:
+        os.environ["RWKV_T_MAX"] = str(ctx_len)
 
     from rwkv_model.model_lora import RWKV
     if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
@@ -55,7 +66,7 @@ model = RWKV(load_model=config['model_path'],
              vocab_size = config['model']['vocab_size'],
              grad_cp = config['trainer']['grad_cp'],
              lora = config['lora'],
-             lr_init=1.0e-4,
+             lr_init=1.0e-5,
              lr_final=1.0e-6,
              dtype =  config['environ']['RWKV_FLOAT_MODE'],
              warmup_steps=config['trainer']['warmup_steps'])
@@ -159,7 +170,7 @@ def save_weight():
     torch.cuda.empty_cache()
     model.load_state_dict(model_engine.module.state_dict())
     # ===============save=================
-    fpath = f"/home/neromous/Documents/blackfog/resources/train-results/oneline/{model_name}.pth"
+    fpath = f"{proj_dir}/{model_name}.pth"
     torch.save(model.state_dict(),fpath)
     print("===saveved====")
     gc.collect()
@@ -168,7 +179,7 @@ def save_weight():
 
 @route('/train/tx-data', method='POST')
 def train_tx_data():
-    global model_engine, ctx_len
+    global model_engine, ctx_len, window
     item = request.json
     gc.collect()
     torch.cuda.empty_cache()
@@ -180,7 +191,6 @@ def train_tx_data():
     total = 0
     mean_loss = 0
     i = 0
-    window = 1024
     data_iter = train_data.yield_tokens(ctx_len=ctx_len, window=window)
     for token in data_iter:
         i += 1
@@ -188,6 +198,10 @@ def train_tx_data():
                  "attention_mask": None}
         m = model_engine.training_step(batch, model_engine=model_engine)
         loss = m.item()
+        if loss < min_loss:
+            m = m * min_loss_fix
+        elif loss > max_loss:
+            m = m * max_loss_fix
         total += loss
         mean_loss = total / i
         model_engine.backward(m)
@@ -197,7 +211,7 @@ def train_tx_data():
 
 @route('/train/token', method='POST')
 def train_token():
-    global model_engine, ctx_len
+    global model_engine, ctx_len, window
     gc.collect()
     torch.cuda.empty_cache()
     item = request.json
@@ -207,7 +221,6 @@ def train_token():
         attention_mask = [1 for x in input_ids]
     assert len(input_ids) == len(attention_mask)
     assert len(input_ids) > 0
-    window = 1024
     losses = []
     while len(input_ids) > 0:
         output = input_ids[:ctx_len]
@@ -229,7 +242,7 @@ def train_token():
 
 @route('/train/sft', method='POST')
 def train_sft():
-    global  model_engine, ctx_len
+    global  model_engine, ctx_len, window
     rnn_model = None
     gc.collect()
     torch.cuda.empty_cache()
@@ -246,14 +259,17 @@ def train_sft():
     random.shuffle(end)
     datasets = [start] + end
     i = 0
-    window = 1024
-    for v in datasets:
+    for v in tqdm(datasets):
         for token in v.yield_train_data(req_len=ctx_len,window=window):
             i += 1
             batch = { "input_ids": token,
                       "attention_mask": None}
             m = model_engine.training_step(batch)
             loss = m.item()
+            if loss < min_loss:
+                m = m * min_loss_fix
+            elif loss > max_loss:
+                m = m * max_loss_fix
             losses.append(loss)
             model_engine.backward(m)
             model_engine.step()
@@ -261,7 +277,7 @@ def train_sft():
             total_loss += loss
             mean_loss = total_loss / i
             losses.append(mean_loss)
-            print(f"-> item_loss {loss} batch_loss {mean_loss}")
+            print(f"-> item_loss {loss} batch_loss {mean_loss}, real_loss {m.item()}")
     gc.collect()
     torch.cuda.empty_cache()
     return {"loss": mean_loss}
