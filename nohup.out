@@ -6823,3 +6823,614 @@ Building extension module wkv_512_bf16...
 Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
 ninja: no work to do.
 Loading extension module wkv_512_bf16...
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/cpu_adam/build.ninja...
+Building extension module cpu_adam...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module cpu_adam...
+Time to load cpu_adam op: 6.511878252029419 seconds
+Adam Optimizer #0 is created with AVX2 arithmetic capability.
+Config: alpha=0.000010, betas=(0.900000, 0.999000), weight_decay=0.000000, adam_w=0
+[2023-10-01 23:46:48,413] [INFO] [logging.py:96:log_dist] [Rank -1] DeepSpeed info: version=0.10.3, git-hash=unknown, git-branch=unknown
+[2023-10-01 23:46:48,413] [INFO] [comm.py:637:init_distributed] cdb=None
+[2023-10-01 23:46:48,413] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+[2023-10-01 23:46:56,374] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Flops Profiler Enabled: False
+[2023-10-01 23:46:56,376] [INFO] [logging.py:96:log_dist] [Rank 0] Removing param_group that has no 'params' in the client Optimizer
+[2023-10-01 23:46:56,376] [INFO] [logging.py:96:log_dist] [Rank 0] Using client Optimizer as basic optimizer
+[2023-10-01 23:46:56,415] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Basic Optimizer = DeepSpeedCPUAdam
+[2023-10-01 23:46:56,415] [INFO] [utils.py:54:is_zero_supported_optimizer] Checking ZeRO support for optimizer=DeepSpeedCPUAdam type=<class 'deepspeed.ops.adam.cpu_adam.DeepSpeedCPUAdam'>
+[2023-10-01 23:46:56,416] [INFO] [logging.py:96:log_dist] [Rank 0] Creating torch.bfloat16 ZeRO stage 2 optimizer
+[2023-10-01 23:46:56,416] [INFO] [stage_1_and_2.py:146:__init__] Reduce bucket size 2000000
+[2023-10-01 23:46:56,416] [INFO] [stage_1_and_2.py:147:__init__] Allgather bucket size 2000000
+[2023-10-01 23:46:56,416] [INFO] [stage_1_and_2.py:148:__init__] CPU Offload: True
+[2023-10-01 23:46:56,416] [INFO] [stage_1_and_2.py:149:__init__] Round robin gradient partitioning: False
+Rank: 0 partition count [1, 1, 1] and sizes[(7517388800, False), (131072, False), (131072, False)] 
+[2023-10-01 23:47:29,963] [INFO] [utils.py:803:see_memory_usage] Before initializing optimizer states
+[2023-10-01 23:47:29,964] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:47:29,964] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 36.56 GB, percent = 9.7%
+[2023-10-01 23:48:02,232] [INFO] [utils.py:803:see_memory_usage] After initializing optimizer states
+[2023-10-01 23:48:02,233] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:48:02,233] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 125.4 GB, percent = 33.2%
+[2023-10-01 23:48:02,233] [INFO] [stage_1_and_2.py:520:__init__] optimizer state initialized
+[2023-10-01 23:48:03,368] [INFO] [utils.py:803:see_memory_usage] After initializing ZeRO optimizer
+[2023-10-01 23:48:03,369] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:48:03,369] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 125.4 GB, percent = 33.2%
+[2023-10-01 23:48:03,391] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Final Optimizer = DeepSpeedCPUAdam
+[2023-10-01 23:48:03,391] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed using client LR scheduler
+[2023-10-01 23:48:03,391] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed LR Scheduler = <deepspeed.runtime.lr_schedules.WarmupLR object at 0x7f95173f19d0>
+[2023-10-01 23:48:03,391] [INFO] [logging.py:96:log_dist] [Rank 0] step=0, skipped=0, lr=[1e-05, 2e-05, 3.0000000000000004e-05], mom=[(0.9, 0.999), (0.9, 0.999), (0.9, 0.999)]
+[2023-10-01 23:48:03,393] [INFO] [config.py:967:print] DeepSpeedEngine configuration:
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   activation_checkpointing_config  {
+    "partition_activations": false, 
+    "contiguous_memory_optimization": false, 
+    "cpu_checkpointing": false, 
+    "number_checkpoints": null, 
+    "synchronize_checkpoint_boundary": false, 
+    "profile": false
+}
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   aio_config ................... {'block_size': 1048576, 'queue_depth': 8, 'thread_count': 1, 'single_submit': False, 'overlap_events': True}
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   amp_enabled .................. False
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   amp_params ................... False
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   autotuning_config ............ {
+    "enabled": false, 
+    "start_step": null, 
+    "end_step": null, 
+    "metric_path": null, 
+    "arg_mappings": null, 
+    "metric": "throughput", 
+    "model_info": null, 
+    "results_dir": "autotuning_results", 
+    "exps_dir": "autotuning_exps", 
+    "overwrite": true, 
+    "fast": true, 
+    "start_profile_step": 3, 
+    "end_profile_step": 5, 
+    "tuner_type": "gridsearch", 
+    "tuner_early_stopping": 5, 
+    "tuner_num_trials": 50, 
+    "model_info_path": null, 
+    "mp_size": 1, 
+    "max_train_batch_size": null, 
+    "min_train_batch_size": 1, 
+    "max_train_micro_batch_size_per_gpu": 1.024000e+03, 
+    "min_train_micro_batch_size_per_gpu": 1, 
+    "num_tuning_micro_batch_sizes": 3
+}
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   bfloat16_enabled ............. auto
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   checkpoint_parallel_write_pipeline  False
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   checkpoint_tag_validation_enabled  True
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   checkpoint_tag_validation_fail  False
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   comms_config ................. <deepspeed.comm.config.DeepSpeedCommsConfig object at 0x7f94d5fc5a00>
+[2023-10-01 23:48:03,393] [INFO] [config.py:971:print]   communication_data_type ...... None
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   compression_config ........... {'weight_quantization': {'shared_parameters': {'enabled': False, 'quantizer_kernel': False, 'schedule_offset': 0, 'quantize_groups': 1, 'quantize_verbose': False, 'quantization_type': 'symmetric', 'quantize_weight_in_forward': False, 'rounding': 'nearest', 'fp16_mixed_quantize': False, 'quantize_change_ratio': 0.001}, 'different_groups': {}}, 'activation_quantization': {'shared_parameters': {'enabled': False, 'quantization_type': 'symmetric', 'range_calibration': 'dynamic', 'schedule_offset': 1000}, 'different_groups': {}}, 'sparse_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'row_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'head_pruning': {'shared_parameters': {'enabled': False, 'method': 'topk', 'schedule_offset': 1000}, 'different_groups': {}}, 'channel_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'layer_reduction': {'enabled': False}}
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   curriculum_enabled_legacy .... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   curriculum_params_legacy ..... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   data_efficiency_config ....... {'enabled': False, 'seed': 1234, 'data_sampling': {'enabled': False, 'num_epochs': 1000, 'num_workers': 0, 'curriculum_learning': {'enabled': False}}, 'data_routing': {'enabled': False, 'random_ltd': {'enabled': False, 'layer_token_lr_schedule': {'enabled': False}}}}
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   data_efficiency_enabled ...... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   dataloader_drop_last ......... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   disable_allgather ............ False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   dump_state ................... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   dynamic_loss_scale_args ...... None
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_enabled ........... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_gas_boundary_resolution  1
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_layer_name ........ bert.encoder.layer
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_layer_num ......... 0
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_max_iter .......... 100
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_stability ......... 1e-06
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_tol ............... 0.01
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   eigenvalue_verbose ........... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   elasticity_enabled ........... False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   flops_profiler_config ........ {
+    "enabled": false, 
+    "recompute_fwd_factor": 0.0, 
+    "profile_step": 1, 
+    "module_depth": -1, 
+    "top_modules": 1, 
+    "detailed": true, 
+    "output_file": null
+}
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   fp16_auto_cast ............... None
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   fp16_enabled ................. False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   fp16_master_weights_and_gradients  False
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   global_rank .................. 0
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   grad_accum_dtype ............. None
+[2023-10-01 23:48:03,394] [INFO] [config.py:971:print]   gradient_accumulation_steps .. 1
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   gradient_clipping ............ 1
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   gradient_predivide_factor .... 1.0
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   hybrid_engine ................ enabled=False max_out_tokens=512 inference_tp_size=1 release_inference_cache=False pin_parameters=True tp_gather_partition_size=8
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   initial_dynamic_scale ........ 1
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   load_universal_checkpoint .... False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   loss_scale ................... 1.0
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   memory_breakdown ............. False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   mics_hierarchial_params_gather  False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   mics_shard_size .............. -1
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   monitor_config ............... tensorboard=TensorBoardConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') wandb=WandbConfig(enabled=False, group=None, team=None, project='deepspeed') csv_monitor=CSVConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') enabled=False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   nebula_config ................ {
+    "enabled": false, 
+    "persistent_storage_path": null, 
+    "persistent_time_interval": 100, 
+    "num_of_version_in_retention": 2, 
+    "enable_nebula_load": true, 
+    "load_path": null
+}
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   optimizer_legacy_fusion ...... False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   optimizer_name ............... None
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   optimizer_params ............. None
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   pipeline ..................... {'stages': 'auto', 'partition': 'best', 'seed_layers': False, 'activation_checkpoint_interval': 0}
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   pld_enabled .................. False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   pld_params ................... False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   prescale_gradients ........... False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   scheduler_name ............... None
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   scheduler_params ............. None
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   sparse_attention ............. None
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   sparse_gradients_enabled ..... False
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   steps_per_print .............. 10
+[2023-10-01 23:48:03,395] [INFO] [config.py:971:print]   train_batch_size ............. 1
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   train_micro_batch_size_per_gpu  1
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   use_node_local_storage ....... False
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   wall_clock_breakdown ......... False
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   weight_quantization_config ... None
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   world_size ................... 1
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   zero_allow_untested_optimizer  False
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   zero_config .................. stage=2 contiguous_gradients=True reduce_scatter=True reduce_bucket_size=2000000 allgather_partitions=True allgather_bucket_size=2000000 overlap_comm=True load_from_fp32_weights=True elastic_checkpoint=False offload_param=None offload_optimizer=DeepSpeedZeroOffloadOptimizerConfig(device='cpu', nvme_path=None, buffer_count=4, pin_memory=True, pipeline=False, pipeline_read=False, pipeline_write=False, fast_init=False) sub_group_size=1,000,000,000 cpu_offload_param=None cpu_offload_use_pin_memory=None cpu_offload=None prefetch_bucket_size=50,000,000 param_persistence_threshold=100,000 model_persistence_threshold=sys.maxsize max_live_parameters=1,000,000,000 max_reuse_distance=1,000,000,000 gather_16bit_weights_on_model_save=False stage3_gather_fp16_weights_on_model_save=False ignore_unused_parameters=True legacy_stage1=False round_robin_gradients=False zero_hpz_partition_size=1 zero_quantized_weights=False zero_quantized_nontrainable_weights=False zero_quantized_gradients=False mics_shard_size=-1 mics_hierarchical_params_gather=False memory_efficient_linear=True pipeline_loading_checkpoint=False override_module_apply=True
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   zero_enabled ................. True
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   zero_force_ds_cpu_optimizer .. True
+[2023-10-01 23:48:03,396] [INFO] [config.py:971:print]   zero_optimization_stage ...... 2
+[2023-10-01 23:48:03,396] [INFO] [config.py:957:print_user_config]   json = {
+    "bfloat16": {
+        "enabled": "auto"
+    }, 
+    "zero_optimization": {
+        "stage": 2, 
+        "offload_optimizer": {
+            "device": "cpu", 
+            "pin_memory": true
+        }, 
+        "allgather_partitions": true, 
+        "allgather_bucket_size": 2.000000e+06, 
+        "overlap_comm": true, 
+        "reduce_scatter": true, 
+        "reduce_bucket_size": 2.000000e+06, 
+        "contiguous_gradients": true
+    }, 
+    "gradient_accumulation_steps": 1, 
+    "gradient_clipping": 1, 
+    "train_micro_batch_size_per_gpu": 1
+}
+Bottle v0.12.25 server starting up (using WSGIRefServer())...
+Listening on http://0.0.0.0:3000/
+Hit Ctrl-C to quit.
+
+Traceback (most recent call last):
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/bottle.py", line 876, in _handle
+    return route.call(**args)
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/bottle.py", line 1759, in wrapper
+    rv = callback(*a, **ka)
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 171, in save_weight
+    torch.save(model.state_dict(),fpath)
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/serialization.py", line 440, in save
+    with _open_zipfile_writer(f) as opened_zipfile:
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/serialization.py", line 315, in _open_zipfile_writer
+    return container(name_or_buffer)
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/serialization.py", line 288, in __init__
+    super().__init__(torch._C.PyTorchFileWriter(str(name)))
+RuntimeError: Parent directory /home/neromous/Documents/blackfog/resources/train-results/train-output does not exist.
+127.0.0.1 - - [01/Oct/2023 23:48:40] "POST /train/save-weight HTTP/1.1" 500 756
+[2023-10-01 23:49:46,355] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 12978
+[2023-10-01 23:49:46,359] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = -9
+[2023-10-01 23:51:58,651] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-01 23:52:00,033] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-01 23:52:00,057] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-01 23:52:01,892] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-01 23:52:03,210] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-01 23:52:03,210] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-01 23:52:03,210] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-01 23:52:03,210] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-01 23:52:03,210] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-01 23:52:05,035] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_512_bf16/build.ninja...
+Building extension module wkv_512_bf16...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv_512_bf16...
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/cpu_adam/build.ninja...
+Building extension module cpu_adam...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module cpu_adam...
+Time to load cpu_adam op: 6.513381242752075 seconds
+Adam Optimizer #0 is created with AVX2 arithmetic capability.
+Config: alpha=0.000010, betas=(0.900000, 0.999000), weight_decay=0.000000, adam_w=0
+[2023-10-01 23:53:33,409] [INFO] [logging.py:96:log_dist] [Rank -1] DeepSpeed info: version=0.10.3, git-hash=unknown, git-branch=unknown
+[2023-10-01 23:53:33,409] [INFO] [comm.py:637:init_distributed] cdb=None
+[2023-10-01 23:53:33,409] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+[2023-10-01 23:53:39,442] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Flops Profiler Enabled: False
+[2023-10-01 23:53:39,444] [INFO] [logging.py:96:log_dist] [Rank 0] Removing param_group that has no 'params' in the client Optimizer
+[2023-10-01 23:53:39,444] [INFO] [logging.py:96:log_dist] [Rank 0] Using client Optimizer as basic optimizer
+[2023-10-01 23:53:39,484] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Basic Optimizer = DeepSpeedCPUAdam
+[2023-10-01 23:53:39,484] [INFO] [utils.py:54:is_zero_supported_optimizer] Checking ZeRO support for optimizer=DeepSpeedCPUAdam type=<class 'deepspeed.ops.adam.cpu_adam.DeepSpeedCPUAdam'>
+[2023-10-01 23:53:39,484] [INFO] [logging.py:96:log_dist] [Rank 0] Creating torch.bfloat16 ZeRO stage 2 optimizer
+[2023-10-01 23:53:39,485] [INFO] [stage_1_and_2.py:146:__init__] Reduce bucket size 2000000
+[2023-10-01 23:53:39,485] [INFO] [stage_1_and_2.py:147:__init__] Allgather bucket size 2000000
+[2023-10-01 23:53:39,485] [INFO] [stage_1_and_2.py:148:__init__] CPU Offload: True
+[2023-10-01 23:53:39,485] [INFO] [stage_1_and_2.py:149:__init__] Round robin gradient partitioning: False
+Rank: 0 partition count [1, 1, 1] and sizes[(7517388800, False), (131072, False), (131072, False)] 
+[2023-10-01 23:54:08,587] [INFO] [utils.py:803:see_memory_usage] Before initializing optimizer states
+[2023-10-01 23:54:08,588] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:54:08,589] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 36.56 GB, percent = 9.7%
+[2023-10-01 23:54:38,857] [INFO] [utils.py:803:see_memory_usage] After initializing optimizer states
+[2023-10-01 23:54:38,857] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:54:38,858] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 125.39 GB, percent = 33.2%
+[2023-10-01 23:54:38,858] [INFO] [stage_1_and_2.py:520:__init__] optimizer state initialized
+[2023-10-01 23:54:40,155] [INFO] [utils.py:803:see_memory_usage] After initializing ZeRO optimizer
+[2023-10-01 23:54:40,155] [INFO] [utils.py:804:see_memory_usage] MA 14.5 GB         Max_MA 14.5 GB         CA 14.51 GB         Max_CA 15 GB 
+[2023-10-01 23:54:40,156] [INFO] [utils.py:811:see_memory_usage] CPU Virtual Memory:  used = 125.39 GB, percent = 33.2%
+[2023-10-01 23:54:40,180] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Final Optimizer = DeepSpeedCPUAdam
+[2023-10-01 23:54:40,180] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed using client LR scheduler
+[2023-10-01 23:54:40,180] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed LR Scheduler = <deepspeed.runtime.lr_schedules.WarmupLR object at 0x7f460e7af9a0>
+[2023-10-01 23:54:40,180] [INFO] [logging.py:96:log_dist] [Rank 0] step=0, skipped=0, lr=[1e-05, 2e-05, 3.0000000000000004e-05], mom=[(0.9, 0.999), (0.9, 0.999), (0.9, 0.999)]
+[2023-10-01 23:54:40,182] [INFO] [config.py:967:print] DeepSpeedEngine configuration:
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   activation_checkpointing_config  {
+    "partition_activations": false, 
+    "contiguous_memory_optimization": false, 
+    "cpu_checkpointing": false, 
+    "number_checkpoints": null, 
+    "synchronize_checkpoint_boundary": false, 
+    "profile": false
+}
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   aio_config ................... {'block_size': 1048576, 'queue_depth': 8, 'thread_count': 1, 'single_submit': False, 'overlap_events': True}
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   amp_enabled .................. False
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   amp_params ................... False
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   autotuning_config ............ {
+    "enabled": false, 
+    "start_step": null, 
+    "end_step": null, 
+    "metric_path": null, 
+    "arg_mappings": null, 
+    "metric": "throughput", 
+    "model_info": null, 
+    "results_dir": "autotuning_results", 
+    "exps_dir": "autotuning_exps", 
+    "overwrite": true, 
+    "fast": true, 
+    "start_profile_step": 3, 
+    "end_profile_step": 5, 
+    "tuner_type": "gridsearch", 
+    "tuner_early_stopping": 5, 
+    "tuner_num_trials": 50, 
+    "model_info_path": null, 
+    "mp_size": 1, 
+    "max_train_batch_size": null, 
+    "min_train_batch_size": 1, 
+    "max_train_micro_batch_size_per_gpu": 1.024000e+03, 
+    "min_train_micro_batch_size_per_gpu": 1, 
+    "num_tuning_micro_batch_sizes": 3
+}
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   bfloat16_enabled ............. auto
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   checkpoint_parallel_write_pipeline  False
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   checkpoint_tag_validation_enabled  True
+[2023-10-01 23:54:40,182] [INFO] [config.py:971:print]   checkpoint_tag_validation_fail  False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   comms_config ................. <deepspeed.comm.config.DeepSpeedCommsConfig object at 0x7f45cf8879d0>
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   communication_data_type ...... None
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   compression_config ........... {'weight_quantization': {'shared_parameters': {'enabled': False, 'quantizer_kernel': False, 'schedule_offset': 0, 'quantize_groups': 1, 'quantize_verbose': False, 'quantization_type': 'symmetric', 'quantize_weight_in_forward': False, 'rounding': 'nearest', 'fp16_mixed_quantize': False, 'quantize_change_ratio': 0.001}, 'different_groups': {}}, 'activation_quantization': {'shared_parameters': {'enabled': False, 'quantization_type': 'symmetric', 'range_calibration': 'dynamic', 'schedule_offset': 1000}, 'different_groups': {}}, 'sparse_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'row_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'head_pruning': {'shared_parameters': {'enabled': False, 'method': 'topk', 'schedule_offset': 1000}, 'different_groups': {}}, 'channel_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'layer_reduction': {'enabled': False}}
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   curriculum_enabled_legacy .... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   curriculum_params_legacy ..... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   data_efficiency_config ....... {'enabled': False, 'seed': 1234, 'data_sampling': {'enabled': False, 'num_epochs': 1000, 'num_workers': 0, 'curriculum_learning': {'enabled': False}}, 'data_routing': {'enabled': False, 'random_ltd': {'enabled': False, 'layer_token_lr_schedule': {'enabled': False}}}}
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   data_efficiency_enabled ...... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   dataloader_drop_last ......... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   disable_allgather ............ False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   dump_state ................... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   dynamic_loss_scale_args ...... None
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_enabled ........... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_gas_boundary_resolution  1
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_layer_name ........ bert.encoder.layer
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_layer_num ......... 0
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_max_iter .......... 100
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_stability ......... 1e-06
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_tol ............... 0.01
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   eigenvalue_verbose ........... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   elasticity_enabled ........... False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   flops_profiler_config ........ {
+    "enabled": false, 
+    "recompute_fwd_factor": 0.0, 
+    "profile_step": 1, 
+    "module_depth": -1, 
+    "top_modules": 1, 
+    "detailed": true, 
+    "output_file": null
+}
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   fp16_auto_cast ............... None
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   fp16_enabled ................. False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   fp16_master_weights_and_gradients  False
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   global_rank .................. 0
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   grad_accum_dtype ............. None
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   gradient_accumulation_steps .. 1
+[2023-10-01 23:54:40,183] [INFO] [config.py:971:print]   gradient_clipping ............ 1
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   gradient_predivide_factor .... 1.0
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   hybrid_engine ................ enabled=False max_out_tokens=512 inference_tp_size=1 release_inference_cache=False pin_parameters=True tp_gather_partition_size=8
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   initial_dynamic_scale ........ 1
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   load_universal_checkpoint .... False
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   loss_scale ................... 1.0
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   memory_breakdown ............. False
+[2023-10-01 23:54:40,184] [INFO] [config.py:971:print]   mics_hierarchial_params_gather  False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   mics_shard_size .............. -1
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   monitor_config ............... tensorboard=TensorBoardConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') wandb=WandbConfig(enabled=False, group=None, team=None, project='deepspeed') csv_monitor=CSVConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') enabled=False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   nebula_config ................ {
+    "enabled": false, 
+    "persistent_storage_path": null, 
+    "persistent_time_interval": 100, 
+    "num_of_version_in_retention": 2, 
+    "enable_nebula_load": true, 
+    "load_path": null
+}
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   optimizer_legacy_fusion ...... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   optimizer_name ............... None
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   optimizer_params ............. None
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   pipeline ..................... {'stages': 'auto', 'partition': 'best', 'seed_layers': False, 'activation_checkpoint_interval': 0}
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   pld_enabled .................. False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   pld_params ................... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   prescale_gradients ........... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   scheduler_name ............... None
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   scheduler_params ............. None
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   sparse_attention ............. None
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   sparse_gradients_enabled ..... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   steps_per_print .............. 10
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   train_batch_size ............. 1
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   train_micro_batch_size_per_gpu  1
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   use_node_local_storage ....... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   wall_clock_breakdown ......... False
+[2023-10-01 23:54:40,186] [INFO] [config.py:971:print]   weight_quantization_config ... None
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   world_size ................... 1
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   zero_allow_untested_optimizer  False
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   zero_config .................. stage=2 contiguous_gradients=True reduce_scatter=True reduce_bucket_size=2000000 allgather_partitions=True allgather_bucket_size=2000000 overlap_comm=True load_from_fp32_weights=True elastic_checkpoint=False offload_param=None offload_optimizer=DeepSpeedZeroOffloadOptimizerConfig(device='cpu', nvme_path=None, buffer_count=4, pin_memory=True, pipeline=False, pipeline_read=False, pipeline_write=False, fast_init=False) sub_group_size=1,000,000,000 cpu_offload_param=None cpu_offload_use_pin_memory=None cpu_offload=None prefetch_bucket_size=50,000,000 param_persistence_threshold=100,000 model_persistence_threshold=sys.maxsize max_live_parameters=1,000,000,000 max_reuse_distance=1,000,000,000 gather_16bit_weights_on_model_save=False stage3_gather_fp16_weights_on_model_save=False ignore_unused_parameters=True legacy_stage1=False round_robin_gradients=False zero_hpz_partition_size=1 zero_quantized_weights=False zero_quantized_nontrainable_weights=False zero_quantized_gradients=False mics_shard_size=-1 mics_hierarchical_params_gather=False memory_efficient_linear=True pipeline_loading_checkpoint=False override_module_apply=True
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   zero_enabled ................. True
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   zero_force_ds_cpu_optimizer .. True
+[2023-10-01 23:54:40,187] [INFO] [config.py:971:print]   zero_optimization_stage ...... 2
+[2023-10-01 23:54:40,187] [INFO] [config.py:957:print_user_config]   json = {
+    "bfloat16": {
+        "enabled": "auto"
+    }, 
+    "zero_optimization": {
+        "stage": 2, 
+        "offload_optimizer": {
+            "device": "cpu", 
+            "pin_memory": true
+        }, 
+        "allgather_partitions": true, 
+        "allgather_bucket_size": 2.000000e+06, 
+        "overlap_comm": true, 
+        "reduce_scatter": true, 
+        "reduce_bucket_size": 2.000000e+06, 
+        "contiguous_gradients": true
+    }, 
+    "gradient_accumulation_steps": 1, 
+    "gradient_clipping": 1, 
+    "train_micro_batch_size_per_gpu": 1
+}
+Bottle v0.12.25 server starting up (using WSGIRefServer())...
+Listening on http://0.0.0.0:3000/
+Hit Ctrl-C to quit.
+
+[2023-10-01 23:54:53,410] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 13601
+[2023-10-01 23:54:53,411] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = -9
+[2023-10-02 00:00:08,895] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:00:10,281] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:00:10,306] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:00:12,145] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:00:13,461] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:00:13,461] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:00:13,461] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:00:13,461] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:00:13,461] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:00:15,295] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Traceback (most recent call last):
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 43, in <module>
+    from rwkv_model.model_lora import RWKV
+  File "/home/neromous/RWKV-Ouroboros/rwkv_model/model_lora.py", line 54, in <module>
+    T_MAX = int(os.environ["RWKV_T_MAX"])  # TAKES LOTS OF VRAM!
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/os.py", line 679, in __getitem__
+    raise KeyError(key) from None
+KeyError: 'RWKV_T_MAX'
+[2023-10-02 00:00:17,474] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 14731
+[2023-10-02 00:00:17,475] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = 1
+[2023-10-02 00:01:03,933] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:01:05,321] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:01:05,345] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:01:07,184] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:01:08,499] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:01:08,499] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:01:08,499] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:01:08,499] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:01:08,499] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:01:10,331] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Creating extension directory /home/neromous/.cache/torch_extensions/py39_cu117/wkv_2048...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_2048/build.ninja...
+Building extension module wkv_2048...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+[1/3] /usr/local/cuda/bin/nvcc  -DTORCH_EXTENSION_NAME=wkv_2048 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=compute_86 -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -res-usage --maxrregcount 60 --use_fast_math -O3 -Xptxas -O3 --extra-device-vectorization -DTmax=2048 -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu -o wkv_cuda.cuda.o 
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z15kernel_backwardIfEviiiPKT_S2_S2_S2_S2_S2_PS0_S3_S3_S3_' for 'sm_86'
+ptxas info    : Function properties for _Z15kernel_backwardIfEviiiPKT_S2_S2_S2_S2_S2_PS0_S3_S3_S3_
+    16384 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 56 registers, 448 bytes cmem[0], 16 bytes cmem[2]
+ptxas info    : Compiling entry function '_Z14kernel_forwardIfEviiiPKT_S2_S2_S2_PS0_' for 'sm_86'
+ptxas info    : Function properties for _Z14kernel_forwardIfEviiiPKT_S2_S2_S2_PS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, 408 bytes cmem[0]
+[2/3] c++ -MMD -MF wkv_op.o.d -DTORCH_EXTENSION_NAME=wkv_2048 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -fPIC -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp -o wkv_op.o 
+[3/3] c++ wkv_op.o wkv_cuda.cuda.o -shared -L/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda/lib64 -lcudart -o wkv_2048.so
+Loading extension module wkv_2048...
+Traceback (most recent call last):
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 45, in <module>
+    from rwkv_model.model_lora import RWKV
+  File "/home/neromous/RWKV-Ouroboros/rwkv_model/model_lora.py", line 294, in <module>
+    if config['trainer']['ctx_parts'] > 0: #内部切分片段，不暴露state接口。
+NameError: name 'config' is not defined
+[2023-10-02 00:01:27,531] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 15004
+[2023-10-02 00:01:27,532] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = 1
+[2023-10-02 00:02:43,400] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:02:44,783] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:02:44,808] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:02:46,638] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:02:47,961] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:02:47,961] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:02:47,961] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:02:47,961] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:02:47,961] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:02:49,804] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_2048/build.ninja...
+Building extension module wkv_2048...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv_2048...
+Traceback (most recent call last):
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 45, in <module>
+    from rwkv_model.model_lora import RWKV
+  File "/home/neromous/RWKV-Ouroboros/rwkv_model/model_lora.py", line 294, in <module>
+    if os.environ['RWKV_PARTS'] != "0": #内部切分片段，不暴露state接口。
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/os.py", line 679, in __getitem__
+    raise KeyError(key) from None
+KeyError: 'RWKV_PARTS'
+[2023-10-02 00:02:52,975] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 15348
+[2023-10-02 00:02:52,981] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = 1
+[2023-10-02 00:05:07,897] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:05:09,299] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:05:09,323] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:05:11,139] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:05:12,452] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:05:12,452] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:05:12,453] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:05:12,453] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:05:12,453] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:05:14,315] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Creating extension directory /home/neromous/.cache/torch_extensions/py39_cu117/wkv_-2046...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_-2046/build.ninja...
+Building extension module wkv_-2046...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+[1/3] /usr/local/cuda/bin/nvcc  -DTORCH_EXTENSION_NAME=wkv_-2046 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=compute_86 -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -res-usage --maxrregcount 60 --use_fast_math -O3 -Xptxas -O3 --extra-device-vectorization -DTmax=-2046 -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu -o wkv_cuda.cuda.o 
+FAILED: wkv_cuda.cuda.o 
+/usr/local/cuda/bin/nvcc  -DTORCH_EXTENSION_NAME=wkv_-2046 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=compute_86 -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -res-usage --maxrregcount 60 --use_fast_math -O3 -Xptxas -O3 --extra-device-vectorization -DTmax=-2046 -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu -o wkv_cuda.cuda.o 
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu(63): error: the size of an array must be greater than zero
+
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu(63): error: the size of an array must be greater than zero
+
+2 errors detected in the compilation of "/home/neromous/RWKV-Ouroboros/cuda_state/wkv_cuda.cu".
+[2/3] c++ -MMD -MF wkv_op.o.d -DTORCH_EXTENSION_NAME=wkv_-2046 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -fPIC -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp -o wkv_op.o 
+FAILED: wkv_op.o 
+c++ -MMD -MF wkv_op.o.d -DTORCH_EXTENSION_NAME=wkv_-2046 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1011\" -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/TH -isystem /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /home/neromous/.anaconda3/envs/blackfog/include/python3.9 -D_GLIBCXX_USE_CXX11_ABI=0 -fPIC -std=c++17 -c /home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp -o wkv_op.o 
+In file included from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/pybind11/attr.h:13,
+                 from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/pybind11/detail/class.h:12,
+                 from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/pybind11/pybind11.h:13,
+                 from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/Exceptions.h:14,
+                 from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/csrc/api/include/torch/python.h:11,
+                 from /home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/include/torch/extension.h:6,
+                 from /home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:1:
+<command-line>: error: expected initializer before ‘-’ token
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:13:17: note: in expansion of macro ‘TORCH_EXTENSION_NAME’
+   13 | PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+      |                 ^~~~~~~~~~~~~~~~~~~~
+<command-line>: error: expected initializer before ‘-’ token
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:13:17: note: in expansion of macro ‘TORCH_EXTENSION_NAME’
+   13 | PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+      |                 ^~~~~~~~~~~~~~~~~~~~
+<command-line>: error: expected initializer before ‘-’ token
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:13:17: note: in expansion of macro ‘TORCH_EXTENSION_NAME’
+   13 | PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+      |                 ^~~~~~~~~~~~~~~~~~~~
+<command-line>: error: expected initializer before ‘-’ token
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:13:17: note: in expansion of macro ‘TORCH_EXTENSION_NAME’
+   13 | PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+      |                 ^~~~~~~~~~~~~~~~~~~~
+<command-line>: error: expected initializer before ‘-’ token
+/home/neromous/RWKV-Ouroboros/cuda_state/wkv_op.cpp:13:17: note: in expansion of macro ‘TORCH_EXTENSION_NAME’
+   13 | PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+      |                 ^~~~~~~~~~~~~~~~~~~~
+ninja: build stopped: subcommand failed.
+Traceback (most recent call last):
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/utils/cpp_extension.py", line 1893, in _run_ninja_build
+    subprocess.run(
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/subprocess.py", line 528, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['ninja', '-v']' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 45, in <module>
+    from rwkv_model.model_lora import RWKV
+  File "/home/neromous/RWKV-Ouroboros/rwkv_model/model_lora.py", line 223, in <module>
+    wkv_cuda = load(name=f"wkv_{T_MAX}", sources=["cuda_state/wkv_op.cpp",
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/utils/cpp_extension.py", line 1284, in load
+    return _jit_compile(
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/utils/cpp_extension.py", line 1509, in _jit_compile
+    _write_ninja_file_and_build_library(
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/utils/cpp_extension.py", line 1624, in _write_ninja_file_and_build_library
+    _run_ninja_build(
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/site-packages/torch/utils/cpp_extension.py", line 1909, in _run_ninja_build
+    raise RuntimeError(message) from e
+RuntimeError: Error building extension 'wkv_-2046'
+[2023-10-02 00:05:29,482] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 16577
+[2023-10-02 00:05:29,483] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = 1
+[2023-10-02 00:05:49,613] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:05:51,006] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:05:51,030] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:05:52,871] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:05:54,203] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:05:54,203] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:05:54,203] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:05:54,203] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:05:54,203] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:05:56,041] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_2048/build.ninja...
+Building extension module wkv_2048...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv_2048...
+Traceback (most recent call last):
+  File "/home/neromous/RWKV-Ouroboros/app.py", line 45, in <module>
+    from rwkv_model.model_lora import RWKV
+  File "/home/neromous/RWKV-Ouroboros/rwkv_model/model_lora.py", line 294, in <module>
+    if os.environ['RWKV_PARTS'] != "0": #内部切分片段，不暴露state接口。
+  File "/home/neromous/.anaconda3/envs/blackfog/lib/python3.9/os.py", line 679, in __getitem__
+    raise KeyError(key) from None
+KeyError: 'RWKV_PARTS'
+[2023-10-02 00:05:59,217] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 16855
+[2023-10-02 00:05:59,217] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '--deepspeed'] exits with return code = 1
+[2023-10-02 00:07:09,625] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:07:11,013] [WARNING] [runner.py:203:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2023-10-02 00:07:11,037] [INFO] [runner.py:570:main] cmd = /home/neromous/.anaconda3/envs/blackfog/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None app.py --deepspeed
+[2023-10-02 00:07:12,879] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2023-10-02 00:07:14,195] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0]}
+[2023-10-02 00:07:14,195] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=1, node_rank=0
+[2023-10-02 00:07:14,195] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2023-10-02 00:07:14,195] [INFO] [launch.py:163:main] dist_world_size=1
+[2023-10-02 00:07:14,195] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0
+[2023-10-02 00:07:16,036] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+RWKV_MY_TESTING 
+Using /home/neromous/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/neromous/.cache/torch_extensions/py39_cu117/wkv_2048/build.ninja...
+Building extension module wkv_2048...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv_2048...

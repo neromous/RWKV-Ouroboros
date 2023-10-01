@@ -59,7 +59,7 @@ from torch.utils.cpp_extension import load
 
 
 if os.environ["RWKV_FLOAT_MODE"] == "bf16":
-    if os.environ.get("RWKV_STATE"):
+    if os.environ.get("RWKV_STATE") == "1":
         wkv_cuda_with_state = load(name=f"wkv_{T_MAX}_bf16",
                                    sources=["cuda_state/wkv_op_state_bf16.cpp",
                                             "cuda_state/wkv_cuda_state_bf16.cu"],
@@ -127,7 +127,7 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
                 gu = torch.sum(gu, dim=0)
                 return (None, None, None, gw, gu, gk, gv, glast_state)
 else:
-    if os.environ.get("RWKV_STATE"):
+    if os.environ.get("RWKV_STATE") == "1":
         wkv_cuda = load(name=f"wkv_{T_MAX}",
                         sources=["cuda_state/wkv_op_state.cpp",
                                  "cuda_state/wkv_cuda_state.cu"],
@@ -291,7 +291,7 @@ else:
                             gk.bfloat16(), gv.bfloat16())
 
 
-if os.environ.get("RWKV_PARTS"): #内部切分片段，不暴露state接口。
+if os.environ['RWKV_PARTS'] != "0": #内部切分片段，不暴露state接口。
     # num_parts = int(os.environ['RWKV_PARTS'])
     def RUN_CUDA(B,T,C,w,u,k,v):
         # assert(T%num_parts == 0)

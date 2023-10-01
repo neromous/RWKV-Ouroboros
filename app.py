@@ -35,9 +35,12 @@ if config['infctx_on']:
 else:
     ctx_parts = config['trainer']['ctx_parts']
     ctx_len = config['model']['ctx_len']
-    os.environ['RWKV_PARTS'] = str(ctx_parts)
     os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
-    os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
+    os.environ['RWKV_PARTS'] = str(ctx_parts)
+    if os.environ['RWKV_PARTS']  != "0" :
+        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
+    else:
+        os.environ["RWKV_T_MAX"] = str(ctx_len)
 
     from rwkv_model.model_lora import RWKV
     if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
