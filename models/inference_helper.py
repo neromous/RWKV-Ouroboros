@@ -152,6 +152,7 @@ class InferenceWithState:
         model,
         load_state_dir,
         svstate_dir,
+        state_backup,
         message: Message,
         callback=my_func,
     ):
@@ -169,7 +170,7 @@ class InferenceWithState:
         logits = None
         all_tokens = []
         out_last = 0
-        now_state = torch.load(load_state_dir) if load_state_dir is not None else None
+        now_state = torch.load(load_state_dir) if load_state_dir is not None else state_backup
         for token in tokens:
             logits, now_state = model(token, now_state)
         for i in range(0, token_count):
@@ -199,6 +200,7 @@ class InferenceWithState:
         if svstate_dir is not None:
             torch.save(now_state, svstate_dir)
         return message, now_state
+
         
     def generate_no_state(self, model,message:Message,callback=my_func):
         tokens = message.tokens
