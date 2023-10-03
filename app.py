@@ -160,9 +160,7 @@ def inference_generate_by_local_state():
     resp = []
     for message in messages:
         msg = inferencer.scene.add_message(message)
-        msg, _ = inferencer.generate_by_state(
-            rwkv_rnn, load_dir, save_dir, msg
-        )
+        msg, _ = inferencer.generate_by_state(rwkv_rnn, load_dir, save_dir, state, msg)
         msg.save()
         resp.append(msg.json())
     return {"messages": resp}
