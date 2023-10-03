@@ -147,6 +147,26 @@ def inference_generate():
         resp.append(msg.json())
     return {"messages": resp}
 
+
+@route("/inference/generate_by_local_state", method="POST")
+def inference_generate_by_local_state():
+    global inferencer, rwkv_rnn
+    if rwkv_rnn == None:
+        load_model()
+    item = request.json
+    messages = item.get("messages", [])
+    save_dir = item.get("sv_dir", None)
+    load_dir = item.get("ld_dir", None)
+    resp = []
+    for message in messages:
+        msg = inferencer.scene.add_message(message)
+        msg, _ = inferencer.generate_by_state(
+            rwkv_rnn, load_dir, save_dir, msg
+        )
+        msg.save()
+        resp.append(msg.json())
+    return {"messages": resp}
+
 @route('/inference/generate-no-state', method='POST')
 def inference_generate_no_state():
     global inferencer,model
