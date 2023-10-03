@@ -1,0 +1,126 @@
+{
+  "model_path": "your/model/weights.pth",
+  "model_name": "default",
+  "proj_dir": "your/checkpoints/dir",
+  "debug" : false,
+  "infctx_on": true,
+  "infctx_type":"pico",
+  "model": {
+    "n_embd": 4096,
+    "n_layer": 32,
+    "vocab_size": 65536,
+    "ctx_len": 1024
+  },
+  "lora":false,
+  "lora_config":{
+    "r": 0,
+    "alpha": 0,
+    "dropout": 0,
+    "parts": ["att", "ln", "time"],
+    "layers": null
+  },
+  "trainer": {
+    "warmup_steps" : 0,
+    "grad_cp" : 1,
+    "window" : 512,
+    "min_loss" : 0.5,
+    "max_loss" : 20,
+    "min_loss_fix":0.05,
+    "max_loss_fix":1,
+    "ctx_parts" : "8"
+    },
+  "environ": {
+    "RWKV_JIT_ON": "1",
+    "RWKV_T_MAX":  2048,
+    "RWKV_FLOAT_MODE": "bf16",
+    "RWKV_TORCH_COMPILE": "",
+    "RWKV_TORCH_RUN_MODE": "torch-complie",
+    "RWKV_MY_TESTING" : "",
+    "RWKV_STATE": "0"
+  },
+  "role": {
+    "summary": {
+      "prefix": [
+        65530,
+        65528
+      ],
+      "postfix": [
+        65535,
+        11
+      ]
+    },
+    "search": {
+      "prefix": [
+        65530,
+        65529
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "system": {
+      "prefix": [
+        65530,
+        65531
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "conversation": {
+      "prefix": [
+        65530,
+        65532
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "think": {
+      "prefix": [
+        65530,
+        65533
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "env": {
+      "prefix": [
+        65530,
+        65534
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "common": {
+      "prefix": [
+        65530
+      ],
+      "postfix": [
+        65535
+      ]
+    },
+    "text": {
+      "prefix": [],
+      "postfix": []
+    }
+  },
+  "inference": {
+    "prompt_config": {
+      "temperature": 0.1,
+      "top_p": 0.1,
+      "top_k": 0,
+      "alpha_frequency": 0.2,
+      "alpha_presence": 0.2,
+      "alpha_decay": 1,
+      "token_ban": [],
+      "token_stop": [0,65535],
+      "chunk_len": 128,
+      "token_count": 256,
+      "over": true
+    }
+
+  }
+}
