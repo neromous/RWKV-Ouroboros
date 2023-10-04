@@ -102,7 +102,7 @@ class InferenceWithState:
         return tokenizer.decode(tokens)
 
     def generate(self,model,message:Message,callback=my_func,state=None):
-        tokens = message.to_tokens()
+        tokens = message.to_tokens(for_infer=True)
         token_count = message.token_count
         token_ban = message.token_ban
         token_stop = message.token_stop
@@ -147,7 +147,7 @@ class InferenceWithState:
         return message, state
 
     def generate_no_state(self, model,message:Message,callback=my_func):
-        tokens = message.tokens
+        tokens = message.to_tokens(for_infer=True)
         token_count = message.token_count
         temperature =  message.temperature
         token_ban = message.token_ban

@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 
 
-m = requests.post("http://0.0.0.0:3000/rnn/inference",
+m = requests.post("http://0.0.0.0:40011/rnn/inference",
                   json={"messages": "",
                     "prefix": "\n",
                     "postfix": "\n",

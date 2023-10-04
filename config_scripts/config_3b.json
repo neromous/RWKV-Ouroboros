@@ -2,7 +2,7 @@
   "model_path": "/home/neromous/pyblackfog/rwkv-output-models/on-line/default.pth",
   "model_name": "default",
   "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/on-line",
-  "port" : 40010,
+  "port" : 40011,
   "debug" : false,
   "infctx_on": false,
   "infctx_type":"wani-boat",

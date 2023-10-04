@@ -1,6 +1,6 @@
 import requests
 
-m = requests.post("http://0.0.0.0:3000/train/tx-data",
+m = requests.post("http://0.0.0.0:40011/train/tx-data",
                   json={"messages" : [{"role":"user",
                                       "text":"Jammy: 太阳是红色的，对不对？",
                                       "prefix":"哈哈",

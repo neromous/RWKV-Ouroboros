@@ -2,9 +2,17 @@ import json
 import time
 from utils import log, load_config
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
-tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
 config = load_config()
+tokenizer = TRIE_TOKENIZER(config['inference']['tokenizer'])
+tokenizer_for_train = TRIE_TOKENIZER(config['trainer']['tokenizer'])
 
+class Base:
+    @classmethod
+    def encode(cls, text, for_infer=False) -> list:
+        if for_infer:
+            return tokenizer.encode(text)
+        else:
+            return tokenizer_for_train.encode(text)
 
 def save(data, path,append=False):
     """
@@ -51,8 +59,12 @@ class Model(object):
         return role in config['role'].keys()
 
     @classmethod
-    def encode(cls, text) -> list:
-        return tokenizer.encode(text)
+    def encode(cls, text, for_infer=False) -> list:
+        if for_infer:
+            return tokenizer.encode(text)
+        else:
+            return tokenizer_for_train.encode(text)
+
 
     @classmethod
     def decode(cls, tokens) -> str:

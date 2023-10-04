@@ -3,10 +3,9 @@ from models.core import Model
 import copy
 import torch
 from utils import log, load_config
-from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 config = load_config()
 prompt_config = config['inference']['prompt_config']
-tokenizer = TRIE_TOKENIZER(config['inference']['tokenizer'])
+
 
 class Message(Model):
     def __init__(self, form):
@@ -44,10 +43,10 @@ class Message(Model):
         else:
             self.tokens = form.get('tokens',[])
 
-    def to_tokens(self) -> list:
+    def to_tokens(self,  for_infer=False) -> list:
         text = self.prefix + self.text + self.postfix
-        if len(self.text) !=0:
-            tokens = self.encode(text)
+        if len(self.text) != 0:
+            tokens = self.encode(text, for_infer=for_infer)
         else:
             tokens = self.tokens
         # 采用token的方式直接增加special token 避免分词不精确
