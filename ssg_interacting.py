@@ -12,8 +12,8 @@ from ssg.ssg_utils import (
 )
 
 
-user = "主人"
-bot = "琉璃"
+user = "User"
+bot = "AI"
 if __name__ == "__main__":
     resp_c = ""
     while True:
