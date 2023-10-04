@@ -1,12 +1,12 @@
 {
-  "model_path": "/home/neromous/pyblackfog/rwkv-output-models/trpg/default.pth",
+  "model_path": "/home/neromous/pyblackfog/rwkv-output-models/on-line/default.pth",
   "model_name": "default",
-  "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/trpg",
+  "proj_dir": "/home/neromous/pyblackfog/rwkv-output-models/on-line",
   "debug" : false,
   "infctx_on": false,
   "infctx_type":"wani-boat",
   "model": {
-    "n_embd": 4096,
+    "n_embd": 2560,
     "n_layer": 32,
     "vocab_size": 65536,
     "ctx_len": 2048
@@ -27,29 +27,33 @@
     "max_loss" : 1.5,
     "min_loss_fix":0.05,
     "max_loss_fix":1.05,
-    "ctx_parts" : "0"
+    "ctx_parts" : "0",
+    "tokenizer" : "./rwkv_vocab_v20230424.txt"
     },
   "environ": {
     "RWKV_JIT_ON": "1",
     "RWKV_T_MAX":  2048,
-    "RWKV_FLOAT_MODE": "fp16",
+    "RWKV_FLOAT_MODE": "fp32",
     "RWKV_TORCH_COMPILE": "",
     "RWKV_TORCH_RUN_MODE": "torch-complie",
     "RWKV_MY_TESTING" : "",
     "RWKV_STATE": "0"
   },
   "role": {
+    "system": {
+      "prefix": [65530,65531],
+      "postfix": [65535,261]
+    },
+    "ego": {
+      "prefix": [65530,65531],
+      "postfix": [65535,261]
+    },
     "master": {
       "prefix": [65530,65532],
       "postfix": [65535,261]
     },
-    "other": {
-      "prefix": [],
-      "postfix": []
-    },
-
-    "system": {
-      "prefix": [65530,65531],
+    "request": {
+      "prefix": [65530,65532],
       "postfix": [65535,261]
     },
     "user": {
@@ -60,7 +64,19 @@
       "prefix": [65530,65533],
       "postfix": [65535,261]
     },
+    "analysis" : {
+      "prefix": [65530,65533],
+      "postfix": [65535,261]
+    },
+    "response": {
+      "prefix": [65530,65534],
+      "postfix": [65535,261]
+    },
     "robot": {
+      "prefix": [65530,65534],
+      "postfix": [65535,261]
+    },
+    "claude": {
       "prefix": [65530,65534],
       "postfix": [65535,261]
     },
@@ -68,9 +84,13 @@
       "prefix": [],
       "postfix": [261]
     },
-    "claude": {
-      "prefix": [65530,65534],
-      "postfix": [65535,261]
+    "context": {
+      "prefix": [],
+      "postfix": []
+    },
+    "other": {
+      "prefix": [],
+      "postfix": []
     },
     "text": {
       "prefix": [],
@@ -78,6 +98,7 @@
     }
   },
   "inference": {
+    "tokenizer": "./rwkv_vocab_v20230424.txt",
     "prompt_config": {
       "temperature": 0.1,
       "top_p": 0.1,
@@ -85,10 +106,10 @@
       "alpha_frequency": 0.45,
       "alpha_presence": 0.45,
       "alpha_decay": 0.996,
-      "token_ban": [],
-      "token_stop": [0,65535],
+      "token_ban": [0],
+      "token_stop": [65532],
       "chunk_len": 128,
-      "token_count": 256,
+      "token_count": 0,
       "over": true
     }
 

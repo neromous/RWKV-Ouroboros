@@ -9,9 +9,8 @@ from models.scene import Scene
 import copy
 import types
 from tqdm import tqdm
-
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
-tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
+tokenizer = TRIE_TOKENIZER(config['inference']['tokenizer'])
 
 
 def sample_logits(logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):

@@ -80,13 +80,13 @@ inferencer = InferenceWithState()
 rwkv_rnn = None
 state = None
 init_state = None
+not_cleane_yet = True
+state_storage = {}
 
 @route('/inference/load-model', method='POST')
 def load_model():
-    global inferencer, model_engine,rwkv_rnn,state, init_state
+    global inferencer, model_engine,rwkv_rnn,state,init_state
     item = request.json
-    gc.collect()
-    torch.cuda.empty_cache()
     rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
     state = None
     init_state = None
@@ -94,7 +94,7 @@ def load_model():
 
 @route('/inference/remove-model', method='POST')
 def remove_model():
-    global inferencer
+    global inferencer,state,init_state
     item = request.json
     rwkv_rnn = None
     state = None
@@ -104,45 +104,77 @@ def remove_model():
     return {"response": "model save"}
 
 @route('/state/init', method='POST')
-def init():
+def state_init():
     global inferencer,rwkv_rnn,state,init_state
+    state = None
+    init_state = None
     if rwkv_rnn == None:
         load_model()
     item = request.json
     messages = item.get('messages',[])
     resp = []
     state = None
-    init_state = None
     for message in messages:
         msg = inferencer.scene.add_message(message)
         msg, state = inferencer.generate(rwkv_rnn,msg,state=state)
         msg.save()
         resp.append(msg.json())
-    init_state = copy.deepcopy(state)
+    init_state = copy.deepcopy(state).cpu()
     return {"messages": resp}
 
 @route('/state/reset', method='POST')
 def reset_state():
-    global inferencer, state, init_state
-    print(inferencer.state)
-    print(inferencer.init_state)
+    global inferencer, state,init_state
+    print("\ninit_state",init_state)
+    print("\nstate->",state)
     state = copy.deepcopy(init_state)
+    if init_state != None:
+        state = state.cuda()
+    print("\n====after reset======")
+    print("\ninit_state",init_state)
+    print("\nstate->",state)
     return {"messages": 'reset'}
 
+@route('/state/save', method='POST')
+def save_state():
+    global inferencer, state_storage,state,init_state
+    item = request.json
+    state_storage[state_name] = copy.deepcopy(state).cpu()
+    return {"messages": 'save-state'}
+
+@route('/state/load', method='POST')
+def load_state():
+    global inferencer, state_storage, state, init_state
+    item = request.json
+    save_name = item.get('save_name',"default")
+    load_name = item.get('load_name',"default")
+    state_storage[save_name] = copy.deepcopy(state).cpu()
+    state = copy.deepcopy(state_storage[load_name]).cuda()
+    return {"messages": 'reset'}
 
 @route('/inference/generate', method='POST')
 def inference_generate():
-    global inferencer,rwkv_rnn, state
+    global inferencer,rwkv_rnn, state_storage, state, init_state
     if rwkv_rnn == None:
         load_model()
     item = request.json
     messages = item.get('messages',[])
     resp = []
     for message in messages:
+        print("\n----",message)
+    print("\n---begin->", state)
+    in_state = copy.deepcopy(state)
+    for message in messages:
         msg = inferencer.scene.add_message(message)
-        msg, state = inferencer.generate(rwkv_rnn, msg, state=state)
+        #if msg.load_state != "default":
+        #    state = copy.deepcopy(state_storage.get(msg.load_state,state)).cuda()
+        msg, in_state = inferencer.generate(rwkv_rnn, msg, state=in_state)
+        #if msg.save_state != "default":
+        #    state_storage[msg.save_state] = copy.deepcopy(state).cpu()
         msg.save()
         resp.append(msg.json())
+    state = copy.deepcopy(in_state)
+    print("\n---after->", state)
     return {"messages": resp}
 
 @route('/inference/generate-no-state', method='POST')
@@ -205,6 +237,7 @@ def train_tx_data():
         model_engine.backward(m)
         model_engine.step()
     # save_data(item)
+    load_model()
     return {"loss": mean_loss}
 
 @route('/train/token', method='POST')
@@ -235,6 +268,7 @@ def train_token():
         model_engine.backward(m)
         model_engine.step()
     # save_data(item)
+
     return {"loss": losses}
 
 
@@ -278,6 +312,7 @@ def train_sft():
             print(f"-> item_loss {loss} batch_loss {mean_loss}, real_loss {m.item()}")
     gc.collect()
     torch.cuda.empty_cache()
+    load_model()
     return {"loss": mean_loss}
 
 
