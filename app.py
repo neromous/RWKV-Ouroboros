@@ -160,7 +160,7 @@ def inference_generate_by_local_state():
     if rwkv_rnn == None:
         load_model()
     item = request.json
-    conversations = item.get("conversations", [])
+    conversations = item.get("tokens", [])
     save_dir = item.get("sv_dir", None)
     load_dir = item.get("ld_dir", None)
     resp = []
@@ -168,7 +168,7 @@ def inference_generate_by_local_state():
     msg, _ = inferencer.generate_by_state(
         rwkv_rnn, load_dir, save_dir, state, conversations, msg
     )
-    resp.append(msg.json())
+    resp.append(msg)
     return {"messages": resp}
 
 
