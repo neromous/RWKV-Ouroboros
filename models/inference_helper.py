@@ -158,27 +158,29 @@ class InferenceWithState:
         state_backup,
         conversations,
         message,
-        end_add_token=[11],
+        end_add_token=11,
         callback=my_func,
     ):
         now_state = torch.load(load_state_dir) if load_state_dir else state_backup
-        token_count = message.token_count
-        token_ban = message.token_ban
-        token_stop = message.token_stop
-        temperature = message.temperature
-        top_p = message.top_p
-        alpha_presence = message.alpha_presence
-        alpha_frequency = message.alpha_frequency
-        alpha_decay = message.alpha_decay
+        token_count = 256
+        token_ban = []
+        token_stop = message["token_stop"]
+        temperature = message["temperature"]
+        top_p = message["top_p"]
+        alpha_presence = message["alpha_presence"]
+        alpha_frequency = message["alpha_frequency"]
+        alpha_decay = message["alpha_decay"]
         out_str = ""
         occurrence = {}
         logits = None
         all_tokens = []
         out_last = 0
-        for conver in conversations:
-            tokens = conver.to_tokens()
+        for tokens in conversations:
             for token in tokens:
                 logits, now_state = model(token, now_state)
+        if logits is None:
+            logits, now_state = model(11, now_state)
+
         for i in range(0, token_count):
             for n in token_ban:
                 logits[n] = -float("inf")
@@ -202,8 +204,8 @@ class InferenceWithState:
                 out_str += text
                 out_last = i + 1
             logits, now_state = model(token, now_state)
-        message.generated = True
-        message.response = out_str
+        message["generated"] = True
+        message["response"] = out_str
         if svstate_dir is not None:
             torch.save(now_state, svstate_dir)
         return message, now_state
