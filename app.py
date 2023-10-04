@@ -6,6 +6,8 @@ import deepspeed
 import json
 from bottle import route, run, template, request
 import random
+import sys
+
 config = load_config()
 #===============pico 配置项=================
 os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
@@ -378,4 +380,4 @@ if config['debug'] :
 
 
 if not config['debug']:
-    run(host='0.0.0.0', port=3000)
+    run(host='0.0.0.0', port=config['port'])
