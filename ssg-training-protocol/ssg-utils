@@ -1,0 +1,203 @@
+from typing import Any
+import os
+from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
+import sys
+import json
+import requests
+from typing import List
+import torch
+import shutil
+
+sys.path.append("..")
+from models.message import Message
+from utils import log, load_config
+
+server = "http://0.0.0.0:3000/"
+sp_tokens = load_config("/home/li/MachineLr/RWKV-Ouroboros/config_scripts/config.json")[
+    "role"
+]
+tokenizer = TRIE_TOKENIZER(
+    "/home/li/MachineLr/RWKV-Ouroboros/ssg/rwkv_vocab_ssg_eval.txt"
+)
+
+
+class Conversation:
+    def __init__(
+        self,
+        text: str = "",
+        role="text",
+        sos_tokens=[],
+    ) -> None:
+        self.text = text
+        self.role = role
+        self.role_sos_tokens = sp_tokens[role]["prefix"]
+        self.role_eos_tokens = sp_tokens[role]["postfix"]
+        self.sos_tokens = sos_tokens
+
+    def __call__(self) -> Any:
+        return self.text.strip()
+
+    def to_tokens(
+        self,
+    ):
+        return (
+            self.sos_tokens
+            + self.role_sos_tokens
+            + tokenizer.encode(self())
+            + self.role_eos_tokens
+        )
+
+    def to_json(
+        self,
+    ):
+        return {
+            "role": self.role,
+            "text": self(),
+        }
+
+
+class RWKV_Dynamic_Args:
+    def __init__(self):
+        self.token_stop = [65535]
+        self.temperature = 1
+        self.top_p = 0.7
+        self.alpha_presence = 0.2
+        self.alpha_frequency = 0.2
+        self.alpha_decay = 1
+
+    def to_json(self):
+        """
+        自定义序列化方法，将RWKV_Dynamic_Args对象的属性转化为字典并序列化为JSON。
+        """
+        return {
+            "token_stop": self.token_stop,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "alpha_presence": self.alpha_presence,
+            "alpha_frequency": self.alpha_frequency,
+            "alpha_decay": self.alpha_decay,
+        }
+
+
+messages_path = "/home/li/MachineLr/RWKV-Ouroboros/ssg/interact_messages"
+states_path = "/home/li/MachineLr/RWKV-Ouroboros/ssg/interact_states"
+
+dirs = [messages_path, states_path]
+for d in dirs:
+    if not os.path.exists(d):
+        os.mkdir(d)
+
+f_conversations = os.path.join(messages_path, "conversations.jsonl")
+train = os.path.join(messages_path, "train.jsonl")
+now_state_path = os.path.join(states_path, "now.state")
+last_state_path = os.path.join(states_path, "last.state")
+use_state_path = None
+
+conversation_hist = []
+last_conversations = None
+last_conversation_index = 0
+
+
+def reflash_conversations_hist():
+    with open(f_conversations, "w", encoding="utf-8") as f:
+        for c in conversation_hist:
+            f.write(json.dumps(c.to_json(), ensure_ascii=False) + "\n")
+
+
+def apply_train():
+    try:
+        with open(train, "r", encoding="utf-8") as f:
+            lines = [json.loads(l) for l in f.readlines() if l.strip()]
+
+        package = {"messages": lines}
+    except Exception as e:
+        print(f"load {train} failed:{e}")
+    print(lines)
+    loss = requests.post(server + "train/tx-data", json=package).json()["loss"]
+    return loss
+
+
+def inferance(
+    conversations: List[Conversation],
+    target_role="conversation",
+    to_char="AI",
+    free_gen=False,
+):
+    for c in conversations:
+        print(c())
+    global conversation_hist, last_conversations, last_conversation_index, use_state_path
+    if os.path.exists(now_state_path):
+        shutil.copy(now_state_path, last_state_path)
+    last_conversation_index = len(conversation_hist)
+    cs_tokens = [c.to_tokens() for c in conversations]
+    msg = RWKV_Dynamic_Args().to_json()
+
+    conversation_hist += conversations
+
+    t = f"{to_char}: " if target_role != "think" else f"({to_char}: "
+
+    # 为模型写开头
+    if not free_gen:
+        cs_tokens.append(
+            Conversation(
+                role="text",
+                sos_tokens=sp_tokens[target_role]["prefix"],
+                text=t,
+            ).to_tokens()
+        )
+    package = {
+        "sv_dir": now_state_path,
+        "ld_dir": use_state_path,
+        "tokens": cs_tokens,
+        "msg": msg,
+    }
+    resp = requests.post(
+        server + "inference/generate_by_local_state", json=package
+    ).json()["messages"][0]["response"]
+
+    resp = resp.strip()
+
+    if resp[-1] == ")":
+        resp = resp[:-1]
+
+    resp_c = (
+        Conversation(role=target_role, text=f"{to_char}: {resp}")
+        if not free_gen
+        else Conversation(role=target_role, text=resp)
+    )
+    print(resp_c())
+    conversation_hist.append(resp_c)
+
+    use_state_path = now_state_path
+    last_conversations = conversations
+    reflash_conversations_hist()
+    return resp_c
+
+
+def regenerate():
+    global conversation_hist, last_conversations, use_state_path, last_conversation_index
+    use_state_path = last_state_path
+    if len(conversation_hist) > last_conversation_index:
+        conversation_hist = conversation_hist[:last_conversation_index]
+    elif last_conversation_index == 0:
+        conversation_hist.clear()
+        last_conversations = None
+
+    reflash_conversations_hist()
+    inferance(last_conversations)
+
+
+def save(name):
+    requests.post(
+        server + "/train/save-weight",
+        json={"model_name": name},
+    )
+
+
+def clear_state():
+    try:
+        os.remove(now_state_path)
+        os.remove(last_state_path)
+        print("==已删除state==")
+    except OSError as e:
+        print(f"删除state时出错: {e}")

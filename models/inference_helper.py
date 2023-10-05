@@ -1,4 +1,5 @@
 from utils import log, load_config
+
 config = load_config()
 import torch
 from torch.nn import functional as F
@@ -11,13 +12,14 @@ import types
 from tqdm import tqdm
 
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
-tokenizer = TRIE_TOKENIZER('./rwkv_vocab_v20230424.txt')
+
+tokenizer = TRIE_TOKENIZER("./rwkv_vocab_v20230424.txt")
 
 
-def sample_logits(logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
+def sample_logits(logits: torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
     probs = F.softmax(logits.float(), dim=-1)
     top_k = int(top_k)
-    if probs.device == torch.device('cpu'):
+    if probs.device == torch.device("cpu"):
         probs = probs.numpy()
         sorted_ids = np.argsort(probs)
         sorted_probs = probs[sorted_ids][::-1]
@@ -49,16 +51,19 @@ def sample_logits(logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
 def my_func(tmp):
     print(tmp, end="", flush=True)
 
+
 class InferenceWithState:
-    def __init__(self,
-                 scene_name = "default",
-                 sampler_fn=sample_logits,
-                 n_layer = None,
-                 ctx_len = None,
-                 n_embd = None):
-        self.ctx_len = ctx_len or config['model']['ctx_len']
-        self.n_layer = n_layer or config['model']['n_layer']
-        self.n_embd = n_embd or config['model']['n_embd']
+    def __init__(
+        self,
+        scene_name="default",
+        sampler_fn=sample_logits,
+        n_layer=None,
+        ctx_len=None,
+        n_embd=None,
+    ):
+        self.ctx_len = ctx_len or config["model"]["ctx_len"]
+        self.n_layer = n_layer or config["model"]["n_layer"]
+        self.n_embd = n_embd or config["model"]["n_embd"]
         self.model = None
         self.scene = Scene.new({"title": scene_name})
         self.state = None
@@ -91,7 +96,7 @@ class InferenceWithState:
 
     @classmethod
     def is_valid_role(cls, role):
-        return role in config['role'].keys()
+        return role in config["role"].keys()
 
     @classmethod
     def encode(cls, text) -> list:
@@ -102,55 +107,113 @@ class InferenceWithState:
         tokens = [x for x in tokens if cls.is_valid_token(x)]
         return tokenizer.decode(tokens)
 
-    def generate(self,model,message:Message,callback=my_func,state=None):
+    def generate(self, model, message: Message, callback=my_func, state=None):
         tokens = message.to_tokens()
         token_count = message.token_count
         token_ban = message.token_ban
         token_stop = message.token_stop
-        temperature =  message.temperature
+        temperature = message.temperature
         top_p = message.top_p
         alpha_presence = message.alpha_presence
         alpha_frequency = message.alpha_frequency
         alpha_decay = message.alpha_decay
         out_str = ""
         occurrence = {}
-        logits= None
+        logits = None
         all_tokens = []
         out_last = 0
         for token in tokens:
-            logits , state = model(token, state)
-        for i in range(0,token_count):
+            logits, state = model(token, state)
+        for i in range(0, token_count):
             for n in token_ban:
-                logits[n] = -float('inf')
+                logits[n] = -float("inf")
             for n in occurrence:
-                logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+                logits[n] -= alpha_presence + occurrence[n] * alpha_frequency
 
-            token = sample_logits(logits,
-                                  temperature=temperature,
-                                  top_p=top_p)
+            token = sample_logits(logits, temperature=temperature, top_p=top_p)
             if token in token_stop:
                 break
             all_tokens += [token]
             for xxx in occurrence:
-               occurrence[xxx] *= alpha_decay
+                occurrence[xxx] *= alpha_decay
             if token not in occurrence:
-               occurrence[token] = 1
+                occurrence[token] = 1
             else:
-               occurrence[token] += 1
+                occurrence[token] += 1
             text = tokenizer.decode(all_tokens[out_last:])
-            if '\ufffd' not in text: # only print when we have a valid utf-8 string
+            if "\ufffd" not in text:  # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
                 out_str += text
                 out_last = i + 1
             logits, state = model(token, state)
-        message.generated =  True
+        message.generated = True
         message.response = out_str
         return message, state
 
-    def generate_no_state(self, model,message:Message,callback=my_func):
+    def generate_by_state(
+        self,
+        model,
+        load_state_dir,
+        svstate_dir,
+        state_backup,
+        conversations,
+        message,
+        end_add_token=11,
+        callback=my_func,
+    ):
+        now_state = torch.load(load_state_dir) if load_state_dir else state_backup
+        token_count = 256
+        token_ban = []
+        token_stop = message["token_stop"]
+        temperature = message["temperature"]
+        top_p = message["top_p"]
+        alpha_presence = message["alpha_presence"]
+        alpha_frequency = message["alpha_frequency"]
+        alpha_decay = message["alpha_decay"]
+        out_str = ""
+        occurrence = {}
+        logits = None
+        all_tokens = []
+        out_last = 0
+        for tokens in conversations:
+            for token in tokens:
+                logits, now_state = model(token, now_state)
+        if logits is None:
+            logits, now_state = model(11, now_state)
+
+        for i in range(0, token_count):
+            for n in token_ban:
+                logits[n] = -float("inf")
+            for n in occurrence:
+                logits[n] -= alpha_presence + occurrence[n] * alpha_frequency
+
+            token = sample_logits(logits, temperature=temperature, top_p=top_p)
+            if token in token_stop:
+                logits, now_state = model(end_add_token, now_state)
+                break
+            all_tokens += [token]
+            for xxx in occurrence:
+                occurrence[xxx] *= alpha_decay
+            if token not in occurrence:
+                occurrence[token] = 1
+            else:
+                occurrence[token] += 1
+            text = tokenizer.decode(all_tokens[out_last:])
+            if "\ufffd" not in text:  # only print when we have a valid utf-8 string
+                print(text, end="", flush=True)
+                out_str += text
+                out_last = i + 1
+            logits, now_state = model(token, now_state)
+        message["generated"] = True
+        message["response"] = out_str
+        if svstate_dir is not None:
+            torch.save(now_state, svstate_dir)
+        return message, now_state
+
+    def generate_no_state(self, model, message: Message, callback=my_func):
         tokens = message.tokens
         token_count = message.token_count
-        temperature =  message.temperature
+        temperature = message.temperature
         token_ban = message.token_ban
         token_stop = message.token_stop
         top_p = message.top_p
@@ -159,38 +222,36 @@ class InferenceWithState:
         alpha_decay = message.alpha_decay
         out_str = ""
         occurrence = {}
-        logits= []
+        logits = []
         ctx_len = self.ctx_len
-        all_tokens = tokens[token_count - ctx_len:]
+        all_tokens = tokens[token_count - ctx_len :]
         length = len(all_tokens)
         out_last = 0
-        for i in range(0,token_count):
+        for i in range(0, token_count):
             logits = model.inference(all_tokens[-ctx_len:])
             logits = logits[-1]
             for n in token_ban:
-                logits[n] = -float('inf')
+                logits[n] = -float("inf")
             for n in occurrence:
-                logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+                logits[n] -= alpha_presence + occurrence[n] * alpha_frequency
 
-            token = sample_logits(logits,
-                                  temperature=temperature,
-                                  top_p=top_p)
+            token = sample_logits(logits, temperature=temperature, top_p=top_p)
             if token in token_stop:
                 break
             all_tokens += [token]
             for xxx in occurrence:
-               occurrence[xxx] *= alpha_decay
+                occurrence[xxx] *= alpha_decay
             if token not in occurrence:
-               occurrence[token] = 1
+                occurrence[token] = 1
             else:
-               occurrence[token] += 1
-            text = tokenizer.decode(all_tokens[length + out_last:])
-            if '\ufffd' not in text: # only print when we have a valid utf-8 string
+                occurrence[token] += 1
+            text = tokenizer.decode(all_tokens[length + out_last :])
+            if "\ufffd" not in text:  # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
                 out_str += text
                 out_last = i + 1
 
-        message.generated =  True
+        message.generated = True
         message.response = out_str
         return message
 
