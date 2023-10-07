@@ -81,6 +81,19 @@
       "prefix": [65530,65534],
       "postfix": [65535,261]
     },
+    "instruction": {
+      "prefix": [],
+      "postfix": []
+    },
+    "answer": {
+      "prefix": [],
+      "postfix": []
+    },
+    "think": {
+      "prefix": [],
+      "postfix": []
+    },
+
     "book": {
       "prefix": [],
       "postfix": [261]

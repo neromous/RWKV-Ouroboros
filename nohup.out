@@ -30374,3 +30374,5 @@ Bottle v0.12.25 server starting up (using WSGIRefServer())...
 Listening on http://0.0.0.0:40010/
 Hit Ctrl-C to quit.
 
+[2023-10-05 01:41:33,489] [INFO] [launch.py:315:sigkill_handler] Killing subprocess 148200
+[2023-10-05 01:41:33,491] [ERROR] [launch.py:321:sigkill_handler] ['/home/neromous/.anaconda3/envs/blackfog/bin/python', '-u', 'app.py', '--local_rank=0', '3b', '--deepspeed'] exits with return code = -9
