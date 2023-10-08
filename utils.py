@@ -1,7 +1,7 @@
 import os.path
 import time
 import json
-
+import sys
 
 def save_data(item: dict):
     text = json.dumps(item, ensure_ascii=False)
@@ -10,6 +10,11 @@ def save_data(item: dict):
         f.write(text)
 
 def load_config(config_path="./config_scripts/config.json") -> dict:
+    print("==in config==",sys.argv)
+    if  "3b" in sys.argv:
+        config_path = "./config_scripts/config_3b.json"
+    elif "7b" in sys.argv:
+        config_path = "./config_scripts/config.json"
     with open(config_path, "r", encoding="utf-8") as f:
         text = f.read()
     res = json.loads(text)

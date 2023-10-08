@@ -1,7 +1,7 @@
 import requests
-m = requests.post("http://0.0.0.0:3000/inference/load-model",json={})
+m = requests.post("http://0.0.0.0:40011/inference/load-model",json={})
 
-m = requests.post("http://0.0.0.0:3000/state/reset",json={})
+m = requests.post("http://0.0.0.0:40011/state/reset",json={})
 print(m.json())
 
 data = [{"text":"Question: 碟形世界的故事讲述了什么？\n\n",
@@ -17,12 +17,12 @@ data = [{"text":"Question: 碟形世界的故事讲述了什么？\n\n",
          #"token_stop": [65530,65531,65532,65533,65534,65535],
          "over":False}]
 
-m = requests.post("http://0.0.0.0:3000/inference/generate",
+m = requests.post("http://0.0.0.0:40011/inference/generate",
                   json={"messages" : data})
 
 print(m.json())
 
-m = requests.post("http://0.0.0.0:3000/state/reset",json={})
+m = requests.post("http://0.0.0.0:40011/state/reset",json={})
 print(m.json())
 
 
@@ -39,12 +39,12 @@ data = [{"text":"Question: “碟形世界”这本小说中有哪些人物出�
          "token_stop":[0],
          "over":False}]
 
-m = requests.post("http://0.0.0.0:3000/inference/generate-no-state",
+m = requests.post("http://0.0.0.0:40011/inference/generate-no-state",
                   json={"messages" : data})
 
 print(m.json())
 
-# m = requests.post("http://0.0.0.0:3000/state/reset",json={})
+# m = requests.post("http://0.0.0.0:40011/state/reset",json={})
 # print(m.json())
 
 
@@ -60,13 +60,13 @@ print(m.json())
 #          "token_stop": [65530,65531,65532,65533,65534,65535],
 #          "over":False}]
 
-# m = requests.post("http://0.0.0.0:3000/inference/generate",
+# m = requests.post("http://0.0.0.0:40011/inference/generate",
 #                   json={"messages" : data})
 
 # print(m.json())
 
 
-# m = requests.post("http://0.0.0.0:3000/state/reset",json={})
+# m = requests.post("http://0.0.0.0:40011/state/reset",json={})
 # print(m.json())
 
 
@@ -82,12 +82,12 @@ print(m.json())
 #          "token_stop": [65530,65531,65532,65533,65534,65535],
 #          "over":False}]
 
-# m = requests.post("http://0.0.0.0:3000/inference/generate",
+# m = requests.post("http://0.0.0.0:40011/inference/generate",
 #                   json={"messages" : data})
 
 # print(m.json())
 
-# m = requests.post("http://0.0.0.0:3000/state/reset",json={})
+# m = requests.post("http://0.0.0.0:40011/state/reset",json={})
 # print(m.json())
 
 
@@ -103,7 +103,7 @@ print(m.json())
 #          "token_stop": [65530,65531,65532,65533,65534,65535],
 #          "over":False}]
 
-# m = requests.post("http://0.0.0.0:3000/inference/generate",
+# m = requests.post("http://0.0.0.0:40011/inference/generate",
 #                   json={"messages" : data})
 
 # print(m.json())

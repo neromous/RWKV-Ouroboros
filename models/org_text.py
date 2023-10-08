@@ -103,7 +103,7 @@ def text_to_node(text:str) -> dict:
             tag += 1
             res[tag] = to_data_node(node)
         else:
-            res[tag] +=  to_data_node(node)
+            res[tag] += to_data_node(node)
     return res
 
 
