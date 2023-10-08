@@ -41,12 +41,14 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 
 
 *  路线图
-- 推理结果存档、修正、训练、存储。 [x]
-- 提供训练与推理实时同步机制（cpu base） [x]
-- 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic） 
-- 增加lora支持
-- 减少推理预训练模型间切换时间 （30s-> 5s）
-- 增加llama系模型支持。
+- [x] 推理结果存档、修正、训练、存储。 
+- [x] 提供训练与推理实时同步机制（cpu base）。
+- [ ] 提供docker版镜像。
+- [ ] 提供前端项目代码。 
+- [ ] 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）。
+- [ ] 增加lora支持。
+- [x] 减少推理预训练模型间切换时间 （30s-> 5s）
+- [ ]增加llama系模型支持。
 
 
 * 联系方式
