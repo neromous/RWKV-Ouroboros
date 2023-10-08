@@ -1,31 +1,33 @@
-# RWKV-Ouroboros
+#+title: RWKV-Ouroboros
+
 This project is established for real-time training of the RWKV model.
 
 
-```
+#+begin_comment
 The snake that eats its own tail, finds sustenance in infinity. 
-```
+#+end_comment
 
 
 
 鉴于大语言模型的发展，人与大语言模型之间的关系和未来产生了很多困扰和猜测。 本项目根据一个基本假设建立，即“人在回路”是人类最好的未来。 通过建立低成本的人在回路实现大语言模型与人类的和谐发展
 
 In light of the development of large language models, the relationship between humans and large language models and the future have caused much distress and speculation. This project is established based on a fundamental assumption that "human in the loop" is the best future for humankind. By establishing low-cost human-in-the-loop systems, we can achieve harmonious development between large language models and humans.
+dd dsadasdf
 
+* 项目组成
+- app.py # 用于模型启动，建立一个基于bottle的服务，通过api暴露训练和数据加载接口，支持infctx与非infctx两种模式的训练，其中infctx的实现包括挖泥船的(wani-bot)实现与pico的实现。通过config_scripts中的配置文件来进行修改。
+- for_client 文件夹下为客户端代码，包括
+  - for_emacs  内含emacs插件文件。 
+  - for_vscode 内含vscode端插件（开发中）
+  - client_code  具体的python脚本， 用于支持插件的调用。
+  - 前端代码： 计划中，目前计划以clojurescript的re-frame框架为基础开发。 
+- rwkv_models： 训练实现
+- models： 训练数据抽象类
+- data： 训练数据抽象类的实体化存储位置，暂时使用jsonl形式。 其中sft.org存储于该目录下，方便编辑器编辑修改。
 
-## 项目组成
-**infctx training is comming soon**
+  
 
-
-- app.py # 用于模型启动，建立一个基于bottle的服务，通过api暴露训练和数据加载接口
-- scripts # 交互脚本 代码很简单， 
-  - inference.py 
-  - train.py 
-- src
-  - model.py 训练模型类
-  - model_run.py 推理类
-
-
+* 项目启动与支持
 项目启动代码
 ```bash
 deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_config.config
@@ -38,16 +40,16 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 - 7b: 显存 20gb， 内存150gb
 
 
-## 路线图
-- 推理结果存档、修正、训练、存储。
-- 提供训练与推理实时同步机制（cpu base）
-- 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）
+*  路线图
+- 推理结果存档、修正、训练、存储。 [x]
+- 提供训练与推理实时同步机制（cpu base） [x]
+- 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic） 
 - 增加lora支持
 - 减少推理预训练模型间切换时间 （30s-> 5s）
 - 增加llama系模型支持。
 
 
-## 联系方式
+* 联系方式
 
 qq群： **873610818**
 
