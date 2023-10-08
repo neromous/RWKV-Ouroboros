@@ -39,6 +39,8 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_co
 - 3B: 显存 12gb， 内存64gb
 - 7b: 显存 20gb， 内存150gb
 
+* 前端项目
+https://github.com/neromous/RWKV-Ouroboros-app
 
 *  路线图
 - 推理结果存档、修正、训练、存储。 [x]
