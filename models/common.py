@@ -1,48 +1,16 @@
 import json
 import time
+import collections
+import copy
+import types
 from utils import log, load_config
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
 config = load_config()
 tokenizer = TRIE_TOKENIZER(config['inference']['tokenizer'])
 tokenizer_for_train = TRIE_TOKENIZER(config['trainer']['tokenizer'])
 
-class Base:
-    @classmethod
-    def encode(cls, text, for_infer=False) -> list:
-        if for_infer:
-            return tokenizer.encode(text)
-        else:
-            return tokenizer_for_train.encode(text)
-
-def save(data, path,append=False):
-    """
-    data 是 dict 或者 list
-    path 是保存文件的路径
-    """
-    s = json.dumps(data, ensure_ascii=False)
-    if append :
-        method = "a"
-    else:
-        method = "w+"
-    with open(path, method, encoding='utf-8') as f:
-        # log('save', path, s, data)
-        f.write(s+"\n")
-
-
-def load(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        texts = f.readlines()
-        # log('load', s)
-    res = []
-    for text in texts:
-        data = json.loads(text)
-        res.append(data)
-    return res
-
-
-class Model(object):
-    _data = {}
-
+class Model(types.SimpleNamespace):
+    _data = collections.OrderedDict()
     @classmethod
     def get_special_token(cls, role, pos):
         r = config["role"]
@@ -78,7 +46,7 @@ class Model(object):
         return path
 
     @classmethod
-    def new(cls, form):
+    def new(cls, form) :
         m = cls(form)
         m.save()
         return m
@@ -92,10 +60,8 @@ class Model(object):
 
     @classmethod
     def all(cls):
-        path = cls.db_path()
-        models = load(path)
-        ms = [cls._new_from_dict(m) for m in models]
-        return ms
+        models = copy.deepcopy(cls._data.values())
+        return models
 
     @classmethod
     def find_all(cls, **kwargs):
@@ -129,25 +95,15 @@ class Model(object):
 
     @classmethod
     def delete(cls, id):
-        models = cls.all()
         index = -1
-        for i, e in enumerate(models):
+        for i, e in cls._data.items():
             if e.id == id:
                 index = i
                 break
-        # 判断是否找到了这个 id 的数据
         if index == -1:
-            # 没找到
-            pass
+            return None
         else:
-            obj = models.pop(index)
-            l = [m.__dict__ for m in models]
-            path = cls.db_path()
-            for i,item in enumerate(l):
-                if i == 0:
-                    save(item, path)
-                else:
-                    save(item,path,append=True)
+            obj = cls._data.pop(index)
             return obj
 
     def __repr__(self):
@@ -156,31 +112,24 @@ class Model(object):
         s = '\n'.join(properties)
         return '< {}\n{} \n>\n'.format(classname, s)
 
-    def json(self):
-        d = self.__dict__.copy()
-        return d
-
     def save(self):
-        models = self.all()
+        cls = self.__class__
         if self.id is None:
-            if len(models) == 0:
+            if len(cls._data) == 0:
                 self.id = 1
             else:
-                m = models[-1]
-                self.id = m.id + 1
-            models.append(self)
+                max_id = max(cls._data.keys())
+                self.id = max_id + 1
+            self._data[self.id] = self
         else:
             index = -1
-            for i, m in enumerate(models):
+            for i, m in cls._data.items():
                 if m.id == self.id:
                     index = i
                     break
-            log('debug', index)
-            models[index] = self
-        l = [ m.json() for m in models]
-        path = self.db_path()
-        for i, item in enumerate(l):
-            if i == 0:
-                save(item, path)
-            else:
-                save(item, path, append=True)
+            cls._data[index] = self
+        return self
+
+    def json(self):
+        d = self.__dict__.copy()
+        return d

@@ -1,10 +1,11 @@
 import time
-from models.core import Model
+from models.common import Model
 import copy
 import torch
 from utils import log, load_config
 config = load_config()
 prompt_config = config['inference']['prompt_config']
+
 
 
 class Message(Model):
@@ -14,7 +15,7 @@ class Message(Model):
         self.text = form.get("text", "")
         self.prefix = form.get("prefix", "")
         self.load_state = form.get("load_state", "default")
-        self.save_state = form.get("load_state", "default")
+        self.save_state = form.get("save_state", "default")
         self.postfix = form.get("postfix", "")
         self.prefix_token = form.get("prefix_token", [])
         self.prefix_token = form.get("postfix_token", [])
@@ -38,17 +39,12 @@ class Message(Model):
         self.to_train = form.get('to_train', True)
         self.ctx = form.get('ctx', 2048)
         self.ctx_fix = form.get('ctx_fix', int(self.ctx / 8))
-        if len(self.text) != 0:
-            self.tokens = form.get('tokens', self.encode(self.prefix + self.text + self.postfix))
-        else:
-            self.tokens = form.get('tokens',[])
+        self.tokens = self.to_tokens(for_infer=True)
+        self.tokens_for_train = self.to_tokens()
 
     def to_tokens(self,  for_infer=False) -> list:
         text = self.prefix + self.text + self.postfix
-        if len(self.text) != 0:
-            tokens = self.encode(text, for_infer=for_infer)
-        else:
-            tokens = self.tokens
+        tokens = self.encode(text, for_infer=for_infer)
         # 采用token的方式直接增加special token 避免分词不精确
         token_prefix = self.get_special_token(self.role, "prefix")
         self.prefix_token = token_prefix
@@ -58,15 +54,7 @@ class Message(Model):
             tokens = token_prefix + tokens + token_postfix
         else:
             tokens = token_prefix + tokens
-        #_tokens = []
         return tokens
-
-
-    def load_file(self,path):
-        with open(path, 'r',encoding='utf-8') as f:
-            text = f.read()
-        self.text = text
-        return self
 
     def message_as_iter(self):
         tokens = copy.deepcopy(self.tokens)
