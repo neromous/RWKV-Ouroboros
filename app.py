@@ -96,7 +96,7 @@ def load_model():
 
 @route('/inference/remove-model', method='POST')
 def remove_model():
-    global inferencer,state,init_state
+    global inferencer,state,init_state,rwkv_rnn
     item = request.json
     rwkv_rnn = None
     state = None
@@ -141,6 +141,7 @@ def reset_state():
 def save_state():
     global inferencer, state_storage,state,init_state
     item = request.json
+    state_name = item.get('save_state','default')
     state_storage[state_name] = copy.deepcopy(state).cpu()
     return {"messages": 'save-state'}
 
@@ -150,8 +151,10 @@ def load_state():
     item = request.json
     save_name = item.get('save_name',"default")
     load_name = item.get('load_name',"default")
-    state_storage[save_name] = copy.deepcopy(state).cpu()
-    state = copy.deepcopy(state_storage[load_name]).cuda()
+    if state is not None:
+        state_storage[save_name] = copy.deepcopy(state).cpu()
+    if state_storage[load_name] is not None:
+        state = copy.deepcopy(state_storage[load_name]).cuda()
     return {"messages": 'reset'}
 
 @route('/inference/generate', method='POST')
@@ -168,16 +171,17 @@ def inference_generate():
     in_state = copy.deepcopy(state)
     for message in messages:
         msg = inferencer.scene.add_message(message)
-        #if msg.load_state != "default":
-        #    state = copy.deepcopy(state_storage.get(msg.load_state,state)).cuda()
+        if msg.load_state != "default":
+            state = copy.deepcopy(state_storage.get(msg.load_state,state)).cuda()
         msg, in_state = inferencer.generate(rwkv_rnn, msg, state=in_state)
-        #if msg.save_state != "default":
-        #    state_storage[msg.save_state] = copy.deepcopy(state).cpu()
+        if msg.save_state != "default" and state is not None:
+            state_storage[msg.save_state] = copy.deepcopy(state).cpu()
         msg.save()
         resp.append(msg.json())
     state = copy.deepcopy(in_state)
     print("\n---after->", state)
     return {"messages": resp}
+
 
 @route('/inference/generate-no-state', method='POST')
 def inference_generate_no_state():
