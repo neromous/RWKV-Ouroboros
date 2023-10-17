@@ -10,7 +10,7 @@
     "n_embd": 2560,
     "n_layer": 32,
     "vocab_size": 65536,
-    "ctx_len": 2048
+    "ctx_len": 256
   },
   "lora":false,
   "lora_config":{
@@ -23,7 +23,7 @@
   "trainer": {
     "warmup_steps" : 8,
     "grad_cp" : 1,
-    "window" : 512,
+    "window" :  0,
     "min_loss" : 0.5,
     "max_loss" : 1.5,
     "min_loss_fix":0.05,
@@ -33,7 +33,7 @@
     },
   "environ": {
     "RWKV_JIT_ON": "1",
-    "RWKV_T_MAX":  2048,
+    "RWKV_T_MAX":  256,
     "RWKV_FLOAT_MODE": "fp32",
     "RWKV_TORCH_COMPILE": "",
     "RWKV_TORCH_RUN_MODE": "torch-complie",

@@ -30,7 +30,7 @@ dd dsadasdf
 * 项目启动与支持
 项目启动代码
 ```bash
-deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed --deepspeed_config ds_config.config
+deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed 
 ```
 
 在3000端口建立服务

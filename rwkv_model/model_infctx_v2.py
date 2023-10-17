@@ -10,25 +10,27 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint as torch_checkpoint
-
+from deepspeed.runtime.activation_checkpointing.checkpointing import non_reentrant_checkpoint
 import numpy as np
 import time
 import types
 import deepspeed
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 
-
 os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
-
 LORA_CONFIG = config['lora_config']
 LORA_CONFIG['parts'] = set(LORA_CONFIG['parts'])
 
 def __nop(ob):
     return ob
 
+ckpt = non_reentrant_checkpoint
 
 MyModule = nn.Module
 MyFunction = __nop
+
+def deepspeed_checkpoint(*args, **kwargs):
+    return deepspeed.checkpointing.checkpoint(*args, **kwargs)
 
 
 local_path = os.path.dirname(__file__)
@@ -447,31 +449,50 @@ class Block(nn.Module):
         x = x + ffn_out
         return x, BlockState(att_state, ffn_state)
 
-
 class L2Wrap(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, loss, y, token_amount):
+    def forward(ctx, loss, y):
         ctx.save_for_backward(y)
-        ctx.token_amount = token_amount
         return loss
 
     @staticmethod
     def backward(ctx, grad_output):
-        # 这个函数会不会影响batch和grad_accu的一致性？
-        # 感觉上会。梯度累积时，factor变大了。但是只有loss缩放，这里的正则化项反而没有缩放
         y = ctx.saved_tensors[0]
         # to encourage the logits to be close to 0
-        if ctx.token_amount == 0:
-            return (grad_output, None, None)
-        factor = 1e-4 / ctx.token_amount #这一行类似crossentropy在token上平均。
+        factor = 1e-4 / (y.shape[0] * y.shape[1])
         maxx, ids = torch.max(y, -1, keepdim=True)
         gy = torch.zeros_like(y)
-        if os.environ.get("WN_FIX_L2WRAP"): #实现batch等价性
-            # maxx[maxx<3.]=0. #防止对已经较小的logits值下拉，只对大于阈值的往下拉
+        if os.environ.get("WN_FIX_L2WRAP"):
+            maxx[maxx<3.]=0.
             gy.scatter_(-1, ids, maxx * factor * grad_output)
         else:
             gy.scatter_(-1, ids, maxx * factor)
-        return (grad_output, gy, None)
+        return (grad_output, gy)
+
+# class L2Wrap(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, loss, y, token_amount):
+#         ctx.save_for_backward(y)
+#         ctx.token_amount = token_amount
+#         return loss
+
+#     @staticmethod
+#     def backward(ctx, grad_output):
+#         # 这个函数会不会影响batch和grad_accu的一致性？
+#         # 感觉上会。梯度累积时，factor变大了。但是只有loss缩放，这里的正则化项反而没有缩放
+#         y = ctx.saved_tensors[0]
+#         # to encourage the logits to be close to 0
+#         if ctx.token_amount == 0:
+#             return (grad_output, None, None)
+#         factor = 1e-4 / ctx.token_amount #这一行类似crossentropy在token上平均。
+#         maxx, ids = torch.max(y, -1, keepdim=True)
+#         gy = torch.zeros_like(y)
+#         if os.environ.get("WN_FIX_L2WRAP"): #实现batch等价性
+#             # maxx[maxx<3.]=0. #防止对已经较小的logits值下拉，只对大于阈值的往下拉
+#             gy.scatter_(-1, ids, maxx * factor * grad_output)
+#         else:
+#             gy.scatter_(-1, ids, maxx * factor)
+#         return (grad_output, gy, None)
 
 
 class RWKV(nn.Module):
@@ -496,7 +517,6 @@ class RWKV(nn.Module):
                  vacab_size=-1,
                  accelerator="gpu",
                  devices=1,
-                 precision="bf16",
                  accumulate_grad_batches=1,
                  strategy="",
                  lora=False,
@@ -688,101 +708,162 @@ class RWKV(nn.Module):
         assert T <= T_MAX, "Cannot forward, model ctx_len is exhausted."
 
         x = self.emb(idx)
-        new_states = BlockStateList.empty(args.n_layer, B, args.n_embd,
-            x.device, x.dtype)
-        for i,(block,block_state) in enumerate(zip(self.blocks,
-            BlockStateList(last_shift_states, last_wkv_states))):
-            # x = x.to(block.device)
-            if args.grad_cp == 1 and i>0 : #and i < len(self.blocks)-1
-                if args.lora:
-                    x, new_block_state = torch_checkpoint(block, x, block_state,use_reentrant=False)
-                else:
-                    x, new_block_state = torch_checkpoint(block, x, block_state,use_reentrant=False)
+        new_states = BlockStateList.empty(args.n_layer,
+                                          B,
+                                          args.n_embd,
+                                          x.device,
+                                          x.dtype)
+        # for i, (block, block_state) in enumerate(zip(self.blocks,
+        #                                            BlockStateList(last_shift_states,
+        #                                                           last_wkv_states))):
+        #     # x = x.to(block.device)
+        #     if args.grad_cp == 1 and i > 0 : #and i < len(self.blocks)-1
+        #         if args.lora:
+        #             x, new_block_state = ckpt(block, x, block_state,use_reentrant=False)
+        #         else:
+        #             x, new_block_state = ckpt(block, x, block_state,use_reentrant=False)
+        #     else:
+        #         x, new_block_state = block(x, block_state)
+        #     new_states[i] = new_block_state
+        # # x = x.to(self.ln_out.device)
+
+        if last_shift_states is None:
+            cur_bs_list = BlockStateList.create(
+                self.n_layer, B,
+                self.n_embd,
+                x.device,
+                x.dtype
+            )
+        else:
+            cur_bs_list = BlockStateList(last_shift_states, last_wkv_states)
+
+
+        for i in range(len(self.blocks)):
+            block = self.blocks[i]
+            last_state = cur_bs_list[i]
+            if self.grad_cp:
+                x, new_state = deepspeed_checkpoint(block, x, last_state)
             else:
-                x, new_block_state = block(x, block_state)
-            new_states[i] = new_block_state
-        # x = x.to(self.ln_out.device)
+                x, new_state = block(x, last_state)
+            new_states[i] = new_state
+
 
         x = self.ln_out(x)
 
         x = self.head(x)
-        return x,new_states.shift_states, new_states.wkv_states
+        return x, new_states.shift_states, new_states.wkv_states
 
 
-    def training_step(self, batch:dict, **kwargs):
+    def training_step(self, batch:dict,states = None, **kwargs):
         args = self.args
         seq = batch['input_ids']
-        masks = batch.get('attention_mask',None)
+        mask = batch.get('attention_mask',None)
+
+        # data process
         idx = seq[:-1]
         targets = seq[1:]
+        if mask == None:
+            mask = [int(x!=0) for x in idx]
+
+        # data into tensor
         idx = torch.tensor([idx],dtype=torch.long).cuda()
         targets = torch.tensor([targets],dtype=torch.long).cuda()
+
+        # process mask
+        mask = torch.tensor([mask],dtype=torch.float32).to('cuda')
+        mask = mask.view(-1)
+        sum_mask = torch.sum(mask).item()
+
         # idx, targets, *others = batch
         B, T = idx.shape
         C = args.n_embd
 
-        states = BlockStateList.create(args.n_layer, B, C, idx.device,
-            self.emb.weight.dtype)
-        # init_states = states
-        # init_states.shift_states.requires_grad_()
-        # init_states.wkv_states.requires_grad_()
-        def checkpointed_step(idx, targets, prev_loss, last_shift_states,
-                              last_wkv_states, prev_token_amount):
-            logits, new_shift_states, new_wkv_states = self(idx, last_shift_states, last_wkv_states)
-            current_token_amount = (targets!=-100).sum() #这样是不是更合适？
-            # current_token_amount = idx.shape[1]
-            if current_token_amount == 0:
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
-                                       targets.reshape(-1),reduction='sum')
-            else:
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
-                                       targets.reshape(-1))
-                loss = L2Wrap.apply(loss, logits, current_token_amount)
-            new_token_amount = prev_token_amount+current_token_amount
-            if new_token_amount>0:
-                new_loss = prev_loss * (prev_token_amount / new_token_amount) + loss * (
-                    current_token_amount / new_token_amount)
-            else:
-                new_loss = prev_loss
-            return new_loss, new_shift_states, new_wkv_states, new_token_amount
 
-        total_loss = torch.tensor(0.,dtype=self.emb.weight.dtype).requires_grad_()
-        token_amount = 0
+        if states is None:
+            states = BlockStateList.create(args.n_layer,
+                                           B,
+                                           C,
+                                           idx.device,
+                                           self.emb.weight.dtype)
+
+        prv_shift_states = states.shift_states
+        prv_wkv_states = states.wkv_states
+        logits, new_shift_states, new_wkv_states = self(idx, prv_shift_states, prv_wkv_states)
+        states = BlockStateList(new_shift_states, new_wkv_states)
+
+        if sum_mask == mask.shape[0]:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            # print('rank', self.global_rank, 'loss', loss.item())
+        else:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction='none')
+            # loss_raw = loss
+            loss = torch.sum(loss * mask)
+            if sum_mask > 0:
+                loss = loss/sum_mask
+        return L2Wrap.apply(loss, logits), states
+
+
+
+        # # init_states = states
+        # # init_states.shift_states.requires_grad_()
+        # # init_states.wkv_states.requires_grad_()
+        # def checkpointed_step(idx, targets, prev_loss, last_shift_states,
+        #                       last_wkv_states, prev_token_amount):
+        #     logits, new_shift_states, new_wkv_states = self(idx, last_shift_states, last_wkv_states)
+        #     current_token_amount = (targets!=-100).sum() #这样是不是更合适？
+        #     # current_token_amount = idx.shape[1]
+        #     if current_token_amount == 0:
+        #         loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+        #                                targets.reshape(-1),reduction='sum')
+        #     else:
+        #         loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+        #                                targets.reshape(-1))
+        #         loss = L2Wrap.apply(loss, logits, current_token_amount)
+        #     new_token_amount = prev_token_amount+current_token_amount
+        #     if new_token_amount>0:
+        #         new_loss = prev_loss * (prev_token_amount / new_token_amount) + loss * (
+        #             current_token_amount / new_token_amount)
+        #     else:
+        #         new_loss = prev_loss
+        #     return new_loss, new_shift_states, new_wkv_states, new_token_amount
+
+        # total_loss = torch.tensor(0.,dtype=self.emb.weight.dtype).requires_grad_()
+        # token_amount = 0
+        # # i = 0
+        # #Blealtan的做法是ctx_len定义为cuda核的大小（对应我们这里的T_max），然后引入ctx_len_cutoff作为控制状态重置的长度
+        # #然后T都是样本长度
+        # #我感觉类似ctx_len_cutoff以后还是用额外的输入来标记每个序列的重置点，而不是模型内部规定一个重置点。
+        # #所以这里就不改成Blealtan的思路了，不过稍后可以在他的基础上rebase。他的代码更简洁一些
         # i = 0
-        #Blealtan的做法是ctx_len定义为cuda核的大小（对应我们这里的T_max），然后引入ctx_len_cutoff作为控制状态重置的长度
-        #然后T都是样本长度
-        #我感觉类似ctx_len_cutoff以后还是用额外的输入来标记每个序列的重置点，而不是模型内部规定一个重置点。
-        #所以这里就不改成Blealtan的思路了，不过稍后可以在他的基础上rebase。他的代码更简洁一些
-        i = 0
-        for i in range(math.ceil(T / T_MAX)-1):
-            # pdb.set_trace()
-            # total_loss, states, token_amount = deepspeed.checkpointing.checkpoint(
-            total_loss,new_shift_states, new_wkv_states,token_amount = torch_checkpoint(
-                checkpointed_step,
-                idx[:, i * T_MAX:(i + 1) * T_MAX],
-                targets[:, i * T_MAX:(i + 1) * T_MAX],
-                total_loss,
-                states.shift_states,
-                states.wkv_states,
-                token_amount,
-                # use_reentrant=False
-            )
-            states = BlockStateList(new_shift_states, new_wkv_states)
-            # if total_loss.isnan().all():
-            #     import transformers
-            #     tokenizer = transformers.PreTrainedTokenizerFast(tokenizer_file="20B_tokenizer.json")
-            #     pdb.set_trace()
-        # pdb.set_trace()
-        total_loss, new_shift_states, new_wkv_states, token_amount = checkpointed_step(
-            idx[:, i * T_MAX:(i + 1) * T_MAX],
-            targets[:, i * T_MAX:(i + 1) * T_MAX],
-            total_loss,
-            states.shift_states,
-            states.wkv_states,
-            token_amount
-        )
-        # pdb.set_trace()
-        return total_loss
+        # for i in range(math.ceil(T / T_MAX)-1):
+        #     # pdb.set_trace()
+        #     # total_loss, states, token_amount = deepspeed.checkpointing.checkpoint(
+        #     total_loss,new_shift_states, new_wkv_states,token_amount = torch_checkpoint(
+        #         checkpointed_step,
+        #         idx[:, i * T_MAX:(i + 1) * T_MAX],
+        #         targets[:, i * T_MAX:(i + 1) * T_MAX],
+        #         total_loss,
+        #         states.shift_states,
+        #         states.wkv_states,
+        #         token_amount,
+        #         # use_reentrant=False
+        #     )
+        #     states = BlockStateList(new_shift_states, new_wkv_states)
+        #     # if total_loss.isnan().all():
+        #     #     import transformers
+        #     #     tokenizer = transformers.PreTrainedTokenizerFast(tokenizer_file="20B_tokenizer.json")
+        #     #     pdb.set_trace()
+        # # pdb.set_trace()
+        # total_loss, new_shift_states, new_wkv_states, token_amount = checkpointed_step(
+        #     idx[:, i * T_MAX:(i + 1) * T_MAX],
+        #     targets[:, i * T_MAX:(i + 1) * T_MAX],
+        #     total_loss,
+        #     states.shift_states,
+        #     states.wkv_states,
+        #     token_amount
+        # )
+        # # pdb.set_trace()
+        # return total_loss
 
 
     # def inference_step(self, token):
@@ -801,56 +882,16 @@ class RWKV(nn.Module):
     #                                                         last_shift_states,
     #                                                         last_wkv_states)
     #         return logits, new_shift_states, new_wkv_states
-
-
-        token_amount = 0
-        i = 0
-        for i in range(math.ceil(T / T_MAX)-1):
-            total_loss,new_shift_states, new_wkv_states = torch_checkpoint(
-                checkpointed_step,
-                idx[:, i * T_MAX:(i + 1) * T_MAX],
-                states.shift_states,
-                states.wkv_states)
-            states = BlockStateList(new_shift_states, new_wkv_states)
-
-
-
-        return logits
+        # token_amount = 0
+        # i = 0
+        # for i in range(math.ceil(T / T_MAX)-1):
+        #     total_loss,new_shift_states, new_wkv_states = torch_checkpoint(
+        #         checkpointed_step,
+        #         idx[:, i * T_MAX:(i + 1) * T_MAX],
+        #         states.shift_states,
+        #         states.wkv_states)
+        #     states = BlockStateList(new_shift_states, new_wkv_states)
 
 
 
-
-    @classmethod
-    def sample_logits(cls,
-                      logits:torch.tensor,
-                      temperature=0.1,
-                      top_p=0.1, top_k=0):
-        probs = F.softmax(logits.float(), dim=-1)
-        top_k = int(top_k)
-        if probs.device == torch.device('cpu'):
-            probs = probs.numpy()
-            sorted_ids = np.argsort(probs)
-            sorted_probs = probs[sorted_ids][::-1]
-            cumulative_probs = np.cumsum(sorted_probs)
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            probs = probs / np.sum(probs)
-            out = np.random.choice(a=len(probs), p=probs)
-            return int(out)
-        else:
-            sorted_ids = torch.argsort(probs)
-            sorted_probs = probs[sorted_ids]
-            sorted_probs = torch.flip(sorted_probs, dims=(0,))
-            cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
-            cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
-            probs[probs < cutoff] = 0
-            if top_k < len(probs) and top_k > 0:
-                probs[sorted_ids[:-top_k]] = 0
-            if temperature != 1.0:
-                probs = probs ** (1.0 / temperature)
-            out = torch.multinomial(probs, num_samples=1)[0]
-            return int(out)
+        # return logits
