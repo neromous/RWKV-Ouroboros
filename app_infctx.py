@@ -14,7 +14,7 @@ os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
 os.environ['RWKV_FLOAT_MODE'] = config['environ']['RWKV_FLOAT_MODE']
 os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
 
-window = config['trainer']['window']
+window =  config['trainer']['window']
 min_loss_fix = config['trainer']['min_loss_fix']
 max_loss_fix = config['trainer']['max_loss_fix']
 min_loss = config['trainer']['min_loss']
@@ -22,33 +22,18 @@ max_loss = config['trainer']['max_loss']
 proj_dir = config['proj_dir']
 ctx_len = int(config['model']['ctx_len'])
 ctx_parts = int(config['trainer']['ctx_parts'])
-if config['infctx_on']:
-    if config['infctx_type'] == "wani-boat":
-        ctx_parts =  config['trainer']['ctx_parts']
-        os.environ['RWKV_PARTS'] = str(ctx_parts)
-        os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
-        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
-        ds_config =  "./stage1_offload_ds_config.config"
-        from rwkv_model.model_state import RWKV
-    elif config['infctx_type'] == "pico":
-        os.environ['RWKV_TORCH_COMPILE'] = config['environ']['RWKV_TORCH_COMPILE']
-        from rwkv_model.model import RWKV
-        ds_config =  "./bf16_ds_config.config"
-else:
-    os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
-    os.environ['RWKV_PARTS'] = str(ctx_parts)
-    if os.environ['RWKV_PARTS']  != "0" :
-        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
-    else:
-        os.environ["RWKV_T_MAX"] = str(ctx_len)
+os.environ['RWKV_TORCH_COMPILE'] = config['environ']['RWKV_TORCH_COMPILE']
+os.environ["RWKV_T_MAX"] = str(ctx_len)
 
-    from rwkv_model.model_lora import RWKV
-    if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
-        ds_config =  "./fp32_ds_config.config"
-    elif config['environ']['RWKV_FLOAT_MODE'] == "fp16":
-        ds_config =  "./fp16_ds_config.config"
-    elif config['environ']['RWKV_FLOAT_MODE'] == "bf16":
-        ds_config =  "./bf16_ds_config.config"
+# ====
+from rwkv_model.model_infctx_v2 import RWKV
+if  config['environ']['RWKV_FLOAT_MODE'] == "fp32":
+    ds_config =  "./fp32_ds_config.config"
+elif config['environ']['RWKV_FLOAT_MODE'] == "fp16":
+    ds_config =  "./fp16_ds_config.config"
+elif config['environ']['RWKV_FLOAT_MODE'] == "bf16":
+    ds_config =  "./bf16_ds_config.config"
+# ====
 
 from rwkv_model.model_infer import RWKV_RNN
 from models.scene import Scene
@@ -66,8 +51,8 @@ model = RWKV(load_model=config['model_path'],
              vocab_size = config['model']['vocab_size'],
              grad_cp = config['trainer']['grad_cp'],
              lora = config['lora'],
-             lr_init=1.0e-6,
-             lr_final=1.0e-6,
+             lr_init=1.0e-5,
+             lr_final=1.0e-5,
              dtype =  config['environ']['RWKV_FLOAT_MODE'],
              warmup_steps=config['trainer']['warmup_steps'])
 
@@ -84,6 +69,7 @@ state = None
 init_state = None
 not_cleane_yet = True
 state_storage = {}
+train_states =  None
 
 @route('/inference/load-model', method='POST')
 def load_model():
@@ -215,7 +201,7 @@ def save_weight():
 
 @route('/train/tx-data', method='POST')
 def train_tx_data():
-    global model_engine, ctx_len, window
+    global model_engine, ctx_len, window,train_states
     item = request.json
     gc.collect()
     torch.cuda.empty_cache()
@@ -228,11 +214,16 @@ def train_tx_data():
     mean_loss = 0
     i = 0
     data_iter = train_data.yield_tokens(ctx_len=ctx_len, window=window)
+    if train_states is not None:
+        states = copy.deepcopy(train_states)
+    else:
+        states = train_states
     for token in data_iter:
+        print(f'==len==>{len(token)}')
         i += 1
         batch = {"input_ids": token,
                  "attention_mask": None}
-        m = model_engine.training_step(batch, model_engine=model_engine)
+        m, states = model_engine.training_step(batch, states = states )
         loss = m.item()
         if loss < min_loss:
             m = m * min_loss_fix
@@ -242,8 +233,11 @@ def train_tx_data():
         mean_loss = total / i
         model_engine.backward(m)
         model_engine.step()
-    # save_data(item)
-    load_model()
+    train_states = states
+
+    states = None
+    gc.collect()
+    torch.cuda.empty_cache()
     return {"loss": mean_loss}
 
 @route('/train/token', method='POST')
