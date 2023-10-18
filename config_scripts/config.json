@@ -54,7 +54,7 @@
     "RWKV_TORCH_COMPILE": "",
     "RWKV_TORCH_RUN_MODE": "torch-complie",
     "RWKV_MY_TESTING" : "",
-    "WN_FIX_L2WRAP": "0",
+    "WN_FIX_L2WRAP": "1",
     "RWKV_STATE": "0"
   },
   "role": {
