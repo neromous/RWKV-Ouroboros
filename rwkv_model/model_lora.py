@@ -509,14 +509,21 @@ class Block(nn.Module):
         self.att = RWKV_TimeMix(args, layer_id)
         self.ffn = RWKV_ChannelMix(args, layer_id)
 
+        if args.dropout > 0:
+            self.drop0 = nn.Dropout(p=args.dropout)
+            self.drop1 = nn.Dropout(p=args.dropout)
 
     def forward(self, x, x_emb=None):
         args = self.args
         B, T, C = x.size()
         if self.layer_id == 0:
             x = self.ln0(x)
-        x = x + self.att(self.ln1(x))
-        x = x + self.ffn(self.ln2(x))
+        if self.args.dropout == 0:
+            x = x + self.att(self.ln1(x))
+            x = x + self.ffn(self.ln2(x))
+        else:
+            x = self.drop0(x + self.att(self.ln1(x)))
+            x = self.drop1(x + self.ffn(self.ln2(x)))
         return x
 
 
@@ -569,6 +576,7 @@ class RWKV(nn.Module):
                  accumulate_grad_batches = 1,
                  strategy = "deepspeed_stage_2_offload",
                  lora = False,
+                 dropout = 0,
                  # lora_r = 16,
                  # lora_alpha = 32,
                  # lora_dropout = 0.01,
@@ -636,6 +644,7 @@ class RWKV(nn.Module):
         args.warmup_steps = self.warmup_steps
         args.dim_att = self.dim_att
         args.dim_ffn = self.dim_ffn
+        args.dropout = dropout
 
         if not hasattr(args, "tiny_att_layer"):
             args.tiny_att_layer = -1

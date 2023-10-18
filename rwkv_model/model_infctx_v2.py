@@ -94,7 +94,7 @@ class BlockStateList:
 # CUDA Kernel
 ########################################################################################################
 
-T_MAX =  int(os.environ["RWKV_T_MAX"])
+T_MAX = int(os.environ["RWKV_T_MAX"])
 
 # it's possible to go beyond CUDA limitations if you slice the ctx and pass the hidden state in each slice
 
@@ -304,11 +304,7 @@ def make_linear_ffn(*args, **kwargs):
     else:
         return nn.Linear(*args, **kwargs)
 
-
-
-
 ########################################################################################################
-
 
 class RWKV_TimeMix(MyModule):
     def __init__(self, args, layer_id):
@@ -429,6 +425,9 @@ class Block(nn.Module):
 
         self.ffn = RWKV_ChannelMix(args, layer_id)
 
+        if args.dropout > 0:
+            self.drop0 = nn.Dropout(p=args.dropout)
+            self.drop1 = nn.Dropout(p=args.dropout)
 
     def forward(self, x, last_state: BlockState):
         args = self.args
@@ -441,12 +440,21 @@ class Block(nn.Module):
             self.ln1(x),
             last_state.time_mix_state,
         )
-        x = x + att_out
+        if self.args.dropout == 0:
+            x = x + att_out
+        else:
+            x = self.drop0(x + att_out)
+
         ffn_out, ffn_state = self.ffn(
             self.ln2(x),
             last_state.channel_mix_state,
         )
-        x = x + ffn_out
+
+        if self.args.dropout == 0:
+            x = x + ffn_out
+        else:
+            x = self.drop1(x + ffn_out)
+
         return x, BlockState(att_state, ffn_state)
 
 class L2Wrap(torch.autograd.Function):
@@ -520,6 +528,7 @@ class RWKV(nn.Module):
                  accumulate_grad_batches=1,
                  strategy="",
                  lora=False,
+                 dropout=0,
                  # lora_r=16,
                  # lora_alpha=32,
                  # lora_dropout=0.01,
@@ -588,6 +597,7 @@ class RWKV(nn.Module):
         args.warmup_steps = self.warmup_steps
         args.dim_att = self.dim_att
         args.dim_ffn = self.dim_ffn
+        args.dropout = dropout
         self.args = args
         if not hasattr(args, "tiny_att_layer"):
             args.tiny_att_layer = -1
@@ -685,7 +695,10 @@ class RWKV(nn.Module):
                                          lr=lr_init,
                                          betas=(self.beta1, self.beta2),
                                          eps=self.adam_eps,
-                                         asbias_correction=True)
+                                         adamw_mode=self.adamw_mode,
+                                         weight_decay=self.weight_decay,
+                                         amsgrad=False,
+                                         bias_correction=True)
         lr_scheduler = None
         if self.warmup_steps > 0:
             lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
