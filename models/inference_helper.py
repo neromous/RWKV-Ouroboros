@@ -101,6 +101,52 @@ class InferenceWithState:
         tokens = [x for x in tokens if cls.is_valid_token(x)]
         return tokenizer.decode(tokens)
 
+    def generate_by_token(self, model, prompt:dict, callback=my_func, state=None):
+        tokens = prompt['tokens']
+        token_count = prompt[ 'token_count']
+        token_ban = prompt['token_ban']
+        token_stop = prompt['token_stop']
+        temperature = prompt['temperature']
+        top_p = prompt['top_p']
+        alpha_presence = prompt['alpha_presence']
+        alpha_frequency = prompt['alpha_frequency']
+        alpha_decay = prompt['alpha_decay']
+        out_str = ""
+        occurrence = {}
+        logits = None
+        all_tokens = []
+        out_last = 0
+        for token in tokens:
+            logits, state = model(token, state)
+        for i in range(0, token_count):
+            for n in token_ban:
+                logits[n] = -float('inf')
+            for n in occurrence:
+                logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+
+            token = sample_logits(logits,
+                                  temperature=temperature,
+                                  top_p=top_p)
+            if token in token_stop:
+                break
+            all_tokens += [token]
+            for xxx in occurrence:
+                occurrence[xxx] *= alpha_decay
+            if token not in occurrence:
+                occurrence[token] = 1
+            else:
+                occurrence[token] += 1
+            text = tokenizer.decode(all_tokens[out_last:])
+            if '\ufffd' not in text:
+                # only print when we have a valid utf-8 string
+                print(text, end="", flush=True)
+                out_str += text
+                out_last = i + 1
+            logits, state = model(token, state)
+        prompt['generated'] = True
+        prompt['response'] = out_str
+        return prompt, state
+
     def generate(self,model,message:Message,callback=my_func,state=None):
         tokens = message.to_tokens(for_infer=True)
         token_count = message.token_count
@@ -131,11 +177,11 @@ class InferenceWithState:
                 break
             all_tokens += [token]
             for xxx in occurrence:
-               occurrence[xxx] *= alpha_decay
+                occurrence[xxx] *= alpha_decay
             if token not in occurrence:
-               occurrence[token] = 1
+                occurrence[token] = 1
             else:
-               occurrence[token] += 1
+                occurrence[token] += 1
             text = tokenizer.decode(all_tokens[out_last:])
             if '\ufffd' not in text: # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
@@ -146,8 +192,12 @@ class InferenceWithState:
         message.response = out_str
         return message, state
 
-    def generate_no_state(self, model,message:Message,callback=my_func):
-        tokens = message.to_tokens(for_infer=True)
+
+
+    def generate_no_state(self, model,messages ,callback=my_func):
+        tokens = []
+        for message in messages:
+            tokens += message.to_tokens(for_infer=True)
         token_count = message.token_count
         temperature =  message.temperature
         token_ban = message.token_ban
@@ -160,8 +210,11 @@ class InferenceWithState:
         occurrence = {}
         logits= []
         ctx_len = self.ctx_len
-        all_tokens = tokens[token_count - ctx_len:]
+        if token_count > ctx_len:
+            token_count = ctx_len
+        all_tokens = tokens[:ctx_len - token_count]
         length = len(all_tokens)
+        print(f'-------{length}')
         out_last = 0
         for i in range(0,token_count):
             logits = model.inference(all_tokens[-ctx_len:])
@@ -178,11 +231,11 @@ class InferenceWithState:
                 break
             all_tokens += [token]
             for xxx in occurrence:
-               occurrence[xxx] *= alpha_decay
+                occurrence[xxx] *= alpha_decay
             if token not in occurrence:
-               occurrence[token] = 1
+                occurrence[token] = 1
             else:
-               occurrence[token] += 1
+                occurrence[token] += 1
             text = tokenizer.decode(all_tokens[length + out_last:])
             if '\ufffd' not in text: # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
@@ -192,6 +245,8 @@ class InferenceWithState:
         message.generated =  True
         message.response = out_str
         return message
+
+
 
     def finish(self):
         messages = []

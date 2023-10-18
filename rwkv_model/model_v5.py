@@ -209,11 +209,11 @@ class RWKV_TimeMix_RWKV5(MyModule):
 
 ########################################################################################################
 
+
 class RWKV_ChannelMix(MyModule):
     def __init__(self, args, layer_id):
         super().__init__()
         self.args = args
-
         self.layer_id = layer_id
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
@@ -235,9 +235,39 @@ class RWKV_ChannelMix(MyModule):
         xk = x * self.time_mix_k + xx * (1 - self.time_mix_k)
         xr = x * self.time_mix_r + xx * (1 - self.time_mix_r)
         k = self.key(xk)
-        k = torch.square(torch.relu(k))
+        k = torch.relu(k) ** 2
         kv = self.value(k)
         return torch.sigmoid(self.receptance(xr)) * kv
+
+# class RWKV_ChannelMix(MyModule):
+#     def __init__(self, args, layer_id):
+#         super().__init__()
+#         self.args = args
+
+#         self.layer_id = layer_id
+#         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
+
+#         with torch.no_grad():  # fancy init of time_mix
+#             ratio_1_to_almost0 = 1.0 - (layer_id / args.n_layer)  # 1 to ~0
+#             ddd = torch.ones(1, 1, args.n_embd)
+#             for i in range(args.n_embd):
+#                 ddd[0, 0, i] = i / args.n_embd
+#             self.time_mix_k = nn.Parameter(torch.pow(ddd, ratio_1_to_almost0))
+#             self.time_mix_r = nn.Parameter(torch.pow(ddd, ratio_1_to_almost0))
+
+#         self.key = nn.Linear(args.n_embd, args.dim_ffn, bias=False)
+#         self.receptance = nn.Linear(args.n_embd, args.n_embd, bias=False)
+#         self.value = nn.Linear(args.dim_ffn, args.n_embd, bias=False)
+
+#     @MyFunction
+#     def forward(self, x):
+#         xx = self.time_shift(x)
+#         xk = x * self.time_mix_k + xx * (1 - self.time_mix_k)
+#         xr = x * self.time_mix_r + xx * (1 - self.time_mix_r)
+#         k = self.key(xk)
+#         k = torch.square(torch.relu(k))
+#         kv = self.value(k)
+#         return torch.sigmoid(self.receptance(xr)) * kv
 
 
 class MishGLU(MyModule):
@@ -389,7 +419,7 @@ class RWKV(nn.Module):
         self.grad_cp = grad_cp
         self.pre_ffn = pre_ffn
         self.dim_att = self.n_embd
-        self.dim_ffn = self.n_embd * 4
+        self.dim_ffn = self.n_embd * 4 - 64 * 20
 
         args = types.SimpleNamespace()
         args.n_layer = self.n_layer
@@ -407,6 +437,8 @@ class RWKV(nn.Module):
         args.dim_att = self.dim_att
         args.dim_ffn = self.dim_ffn
         args.dropout = dropout
+        args.head_size_a = 64
+        args.head_size_divisor = 8
 
         if not hasattr(args, "tiny_att_layer"):
             args.tiny_att_layer = -1
@@ -537,6 +569,35 @@ class RWKV(nn.Module):
 
         # -------- 计算loss  --------
         return logits
+
+    def inference(self, tokens):
+        with torch.no_grad():
+            idx = [x for x in tokens]
+            #print(f'=======\n{idx}')
+            #idx = [0 for x in range(0,self.ctx_len)]
+            #idx[:len(tokens)] =  tokens
+            idx = idx[:self.ctx_len - 1]
+
+            idx = torch.tensor([idx],dtype=torch.long).to('cuda')
+            # -------- 计算 idx 到logits --------
+            B, T = idx.size()
+            assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
+            x = self.emb(idx)
+
+            for block in self.blocks:
+                x = block(x)
+
+            x = self.ln_out(x)
+
+            x = self.head(x)
+
+            x = x.view(-1, x.size(-1))
+
+            # -------- 计算loss  --------
+            #gc.collect()
+            #torch.cuda.empty_cache()
+            return x
+
 
     def training_step(self, batch:dict,mask=None,**kwargs):
         seq = batch['input_ids']
