@@ -12,6 +12,7 @@ class Message(Model):
     def __init__(self, form):
         self.id = None
         self.role = form.get("role", "user")
+        self.role = form.get("no_loss", True)
         self.text = form.get("text", "")
         self.prefix = form.get("prefix", "")
         self.load_state = form.get("load_state", "default")

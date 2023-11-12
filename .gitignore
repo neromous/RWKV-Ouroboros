@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.out
 
+*.pth
 # C extensions
 *.so
 save.pth/*

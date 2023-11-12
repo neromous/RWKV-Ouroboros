@@ -9,7 +9,7 @@
     "n_embd": 4096,
     "n_layer": 32,
     "vocab_size": 65536,
-    "ctx_len": 128
+    "ctx_len": 512
   },
   "lora": false,
   "lora_config":{
@@ -50,7 +50,7 @@
   "environ": {
     "RWKV_JIT_ON": "0",
     "RWKV_T_MAX":  2048,
-    "RWKV_FLOAT_MODE": "fp16",
+    "RWKV_FLOAT_MODE": "bf16",
     "RWKV_TORCH_COMPILE": "",
     "RWKV_TORCH_RUN_MODE": "torch-complie",
     "RWKV_MY_TESTING" : "",
@@ -112,7 +112,7 @@
     },
     "text": {
       "prefix": [],
-      "postfix": []
+      "postfix": [0]
     }
   }
 
