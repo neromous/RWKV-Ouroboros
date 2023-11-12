@@ -8,12 +8,12 @@ config = {
     "port": 3000,
     "debug": False,
     "model": {
-        "load_model": "/home/neromous/Documents/ouroboros/RWKV-Ouroboros/resources/weights/default.pth",
+        "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
-        "ctx_len": 4096,
+        "ctx_len": 3200,
         "dtype": "fp32",
         "head_size_a": 64,
         "head_size_divisor": 8,
@@ -138,7 +138,7 @@ config = {
         },
         "text": {
             "prefix": [],
-            "postfix": [0]
+            "postfix": [261]
         }
     }}
 
