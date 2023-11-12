@@ -1,419 +1,453 @@
-import os
-from utils import log, load_config
-import torch
+from utils.tokenizer import TRIE_TOKENIZER
+from prompts.messages import Message
+import types
 import gc
-import deepspeed
-import json
-from bottle import route, run, template, request
-import random
-import sys
-
-config = load_config()
-#===============pico 配置项=================
-# os.environ['RWKV_JIT_ON'] = config['environ']['RWKV_JIT_ON']
-os.environ['RWKV_FLOAT_MODE'] = config['environ']['RWKV_FLOAT_MODE']
-os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
-# 对logits 正则化 防止logits过大
-os.environ['WN_FIX_L2WRAP'] = config['environ']['WN_FIX_L2WRAP']
-# use window when you use fixed ctx.
-# when you use infctx that value should be 0
-window = config['trainer']['window']
-min_loss_fix = config['trainer']['min_loss_fix']
-max_loss_fix = config['trainer']['max_loss_fix']
-min_loss = config['trainer']['min_loss']
-max_loss = config['trainer']['max_loss']
-proj_dir = config['proj_dir']
-ctx_len = int(config['model']['ctx_len'])
-ctx_parts = int(config['trainer']['ctx_parts'])
-
-if config['infctx_on']:
-    # 推荐值 128-256， 其state值是跨batch传递的。
-    os.environ["RWKV_T_MAX"] = str(ctx_len)
-    from rwkv_model.model_infctx_v2 import RWKV
-else:
-    # 不推荐分段
-    os.environ['RWKV_STATE'] = config['environ']['RWKV_STATE']
-    os.environ['RWKV_PARTS'] = str(ctx_parts)
-    # 不推荐设置RWKV_PARTS的值。该功能会在后面的版本移除，由infctx模式替代。
-    if os.environ['RWKV_PARTS'] != "0" :
-        os.environ["RWKV_T_MAX"] = str((ctx_len+ctx_parts-1) // ctx_parts)
-    else:
-        # 推荐值 2048 在24g下
-        os.environ["RWKV_T_MAX"] = str(ctx_len)
-    from rwkv_model.model_lora import RWKV
-# 使用不同的ds——config文件
-if config['environ']['RWKV_FLOAT_MODE'] == "fp32":
-    ds_config =  "./ds_config/fp32_ds_config.config"
-elif config['environ']['RWKV_FLOAT_MODE'] == "fp16":
-    ds_config =  "./ds_config/fp16_ds_config.config"
-elif config['environ']['RWKV_FLOAT_MODE'] == "bf16":
-    ds_config =  "./ds_config/bf16_ds_config.config"
-
-
-# 加载推理模型
-from rwkv_model.model_infer import RWKV_RNN
-from models.scene import Scene
-from utils import save_data
-# 加载推理实现
-from models.inference_helper import InferenceWithState
-# 用于解析org文件
-from models.org_text import DataNode, file_to_node,text_to_node
 import copy
-from tqdm import tqdm
+import torch
+from bottle import route, run, request
+import deepspeed
+from config import config
 
-model = RWKV(load_model=config['model_path'],
-             n_layer= config['model']['n_layer'],
-             ctx_len= config['model']['ctx_len'],
-             n_embd= config['model']['n_embd'],
-             vocab_size = config['model']['vocab_size'],
-             dropout = config['trainer']['dropout'],
-             grad_cp = config['trainer']['grad_cp'],
-             lora = config['lora'],
-             lr_init=1.0e-5,
-             lr_final=1.0e-5,
-             dtype =  config['environ']['RWKV_FLOAT_MODE'],
-             warmup_steps=config['trainer']['warmup_steps'])
+args = types.SimpleNamespace()
 
-# 加载优化器
-optimizer, lr_scheduler = model.get_optimizers()
 
-# 初始化deepspeed
-model_engine, optimizer, _, _ = deepspeed.initialize(model=model,
+for k, v in config['model'].items():
+    setattr(args, k, v)
+
+for k, v in config['trainer'].items():
+    setattr(args, k, v)
+
+tokenizer = config['inference']['tokenizer']
+
+# ================
+# init state model
+# ================
+train_model = None
+train_state = None
+train_init_state = None
+train_state_map = {}
+# ================
+training_step = 0
+
+# ================
+rnn_model = None
+infer_state = None
+infer_init_state = None
+infer_state_map = {}
+debug = config['debug']
+# ================
+# load model
+# ================
+
+if args.rwkv_version == "v4":
+    if args.infctx_on:
+        from models.v4.infctx import RWKV
+    else:
+        from models.v4.origin import RWKV
+    train_model = RWKV(args)
+    from models.v4.runner import RWKV_RNN
+elif args.rwkv_version == "v5":
+    if args.infctx_on:
+        from models.v5.infctx import RWKV
+    else:
+        from models.v5.origin import RWKV
+    train_model = RWKV(args)
+    from models.v5.runner import RWKV_RNN
+
+
+optimizer, lr_scheduler = train_model.get_optimizers()
+model_engine, optimizer, _, _ = deepspeed.initialize(model=train_model,
                                                      optimizer=optimizer,
                                                      lr_scheduler=lr_scheduler,
-                                                     config=ds_config)
+                                                     config=args.ds_config)
 
-# 加载推理类
-inferencer = InferenceWithState()
-rwkv_rnn = None
-state = None
-init_state = None
-not_cleane_yet = True
-state_storage = {}
-train_states =  None
+# ================
+# train-state
+# ================
+
+if args.infctx_on:
+    @route('/trainer/state/reset', method='POST')
+    def clean_train_state():
+        global train_state
+        # req = dict(request.json)
+        train_state = None
+        # ================
+        gc.collect()
+        torch.cuda.empty_cache()
+        return {"message": "success"}
+
+    @route('/trainer/state/save', method='POST')
+    def save_train_state():
+        global train_state, train_state_map
+        req = dict(request.json)
+        s_name = req.get('save_state', False)
+        if s_name and train_state is not None:
+            train_state_map[s_name] = copy.deepcopy(train_state).cpu()
+        return {"message": "success"}
+
+    @route('/trainer/state/load', method='POST')
+    def load_train_state():
+        global train_state, train_state_map
+        req = dict(request.json)
+        s_name = req.get('load_state', False)
+        if s_name:
+            train_state = train_state_map.get(s_name, None)
+        else:
+            return {"message": "fail"}
+        if train_state is not None:
+            train_state = train_state.cuda()
+        return {"message": "success"}
+
+    @route('/trainer/state/save-to-disk', method='POST')
+    def train_state_to_disk():
+        global train_state, train_state_map
+        req = dict(request.json)
+        s_name = req.get('save_name', "v5-3b-81.pth")
+        fpath = f"./resources/states_for_train/{s_name}.pth"
+        torch.save(copy.deepcopy(train_state_map), fpath)
+        return {"message": "save success"}
 
 
-@route('/train-state/reset', method='POST')
-def reset_state():
-    global train_states
-    print("\nbefor->", train_states)
-    train_states = None
-    print("\nafter0->",train_states)
-    return {"messages": 'reset'}
-
-@route('/train-state/save', method='POST')
-def state_to_disk():
-    global train_states
-    model_name = item.get("train_state_name","default-train-state")
-    fpath = f"{proj_dir}/{model_name}.pth"
-    torch.save(copy.deepcopy(train_states), fpath)
-    return {"messages": 'reset'}
-
-
-@route('/inference/load-model', method='POST')
-def load_model():
-    global inferencer, model_engine,rwkv_rnn,state,init_state
-    item = request.json
-    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
-    state = None
-    init_state = None
-    return {"response": "model save"}
-
-@route('/inference/remove-model', method='POST')
-def remove_model():
-    global inferencer,state,init_state,rwkv_rnn
-    item = request.json
-    rwkv_rnn = None
-    state = None
-    init_state = None
+@route('/trainer/model/save-to-disk', method='POST')
+def train_model_to_disk():
+    global model_engine, train_model
+    req = dict(request.json)
+    s_name = req.get('save_name', "default")
+    fpath = f"./resources/weights/{s_name}.pth"
+    # ================
     gc.collect()
     torch.cuda.empty_cache()
-    return {"response": "model save"}
-
-@route('/state/init', method='POST')
-def state_init():
-    global inferencer,rwkv_rnn,state,init_state
-    state = None
-    init_state = None
-    if rwkv_rnn == None:
-        load_model()
-    item = request.json
-    messages = item.get('messages',[])
-    resp = []
-    state = None
-    for message in messages:
-        msg = inferencer.scene.add_message(message)
-        msg, state = inferencer.generate(rwkv_rnn,msg,state=state)
-        msg.save()
-        resp.append(msg.json())
-    init_state = copy.deepcopy(state).cpu()
-    return {"messages": resp}
-
-@route('/state/reset', method='POST')
-def reset_state():
-    global inferencer, state,init_state
-    print("\ninit_state",init_state)
-    print("\nstate->",state)
-    state = copy.deepcopy(init_state)
-    if init_state != None:
-        state = state.cuda()
-    print("\n====after reset======")
-    print("\ninit_state",init_state)
-    print("\nstate->",state)
-    return {"messages": 'reset'}
-
-@route('/state/save', method='POST')
-def save_state():
-    global inferencer, state_storage, state, init_state
-    model_name = item.get("train_state_name","default-state")
-    fpath = f"{proj_dir}/{model_name}.pth"
-    item = request.json
-    state_name = item.get('save_state', 'default')
-    state_storage[state_name] = copy.deepcopy(state).cpu()
-    # torch.save(copy.deepcopy(state), fpath)
-    return {"messages": 'save-state'}
-
-@route('/state/load', method='POST')
-def load_state():
-    global inferencer, state_storage, state, init_state
-    item = request.json
-    save_name = item.get('save_name', "default")
-    load_name = item.get('load_name', "default")
-    if state is not None:
-        state_storage[save_name] = copy.deepcopy(state).cpu()
-    if state_storage[load_name] is not None:
-        state = copy.deepcopy(state_storage[load_name]).cuda()
-    return {"messages": 'reset'}
-
-@route('/inference/generate-by-token', method='POST')
-def inference_generate_by_token():
-    global inferencer,rwkv_rnn, state_storage, state, init_state
-    if rwkv_rnn == None:
-        load_model()
-    prompt = request.json
-    load_state_name = prompt.get('load_state','default')
-    save_state_name = prompt.get('save_state','default')
-    if not prompt or type(prompt) is not dict:
-        return {'error':'no avalible prompt'}
-    prompt_state = copy.deepcopy(state)
-    #prompt = inferencer.scene.add_prompt(prompt)
-    if load_state_name != "default":
-        state = copy.deepcopy(state_storage.get(load_state_name,state)).cuda()
-    prompt, prompt_state = inferencer.generate_by_token(rwkv_rnn, prompt, state=prompt_state)
-    if save_state_name != "default" and state is not None:
-        state_storage[save_state_name] = copy.deepcopy(state).cpu()
-    state = copy.deepcopy(prompt_state)
-    return {"prompt": prompt}
-
-@route('/inference/generate', method='POST')
-def inference_generate():
-    global inferencer,rwkv_rnn, state_storage, state, init_state
-    if rwkv_rnn == None:
-        load_model()
-    item = request.json
-    messages = item.get('messages',[])
-    resp = []
-    for message in messages:
-        print("\n----",message)
-    print("\n---begin->", state)
-    in_state = copy.deepcopy(state)
-    for message in messages:
-        msg = inferencer.scene.add_message(message)
-        if msg.load_state != "default":
-            state = copy.deepcopy(state_storage.get(msg.load_state,state)).cuda()
-        msg, in_state = inferencer.generate(rwkv_rnn, msg, state=in_state)
-        if msg.save_state != "default" and state is not None:
-            state_storage[msg.save_state] = copy.deepcopy(state).cpu()
-        msg.save()
-        resp.append(msg.json())
-    state = copy.deepcopy(in_state)
-    print("\n---after->", state)
-    return {"messages": resp}
-
-@route('/inference/generate-no-state', method='POST')
-def inference_generate_no_state():
-    global inferencer,model
-    item = request.json
-    messages = item.get('messages',[])
-    resp = []
-    for message in messages:
-        msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate_no_state(model, msg)
-        msg.save()
-        resp.append(msg.json())
-    return {"messages": resp}
-
-
-@route('/train/save-weight', method='POST')
-def save_weight():
-    global model_engine,model
-    item = request.json
-    model_name = item.get("model_name","default")
+    # ================
+    train_model.load_state_dict(model_engine.module.state_dict())
+    torch.save(train_model.state_dict(), fpath)
+    # ================
     gc.collect()
     torch.cuda.empty_cache()
-    model.load_state_dict(model_engine.module.state_dict())
-    # ===============save=================
-    fpath = f"{proj_dir}/{model_name}.pth"
-    torch.save(model.state_dict(), fpath)
-    print(f"===saved=={fpath}==")
-    gc.collect()
-    torch.cuda.empty_cache()
-    return {"response": "model save"}
+    return {"message": "save success"}
+
+# ================
+# train model
+# ================
 
 
-@route('/train/tx-data', method='POST')
-def train_tx_data():
-    global model_engine, ctx_len, window,train_states
-    item = request.json
-    gc.collect()
-    torch.cuda.empty_cache()
-    # parse
-    if type(item) == dict:
-        train_data = Scene.new(item)
-    else:
-        return {"message": "failed for unvalid data, request should be a dict"}
-    total = 0
-    mean_loss = 0
-    i = 0
-    data_iter = train_data.yield_tokens(ctx_len=ctx_len, window=window)
-    if train_states is not None:
-        states = copy.deepcopy(train_states)
-    else:
-        states = train_states
-    for token in data_iter:
-        print(f'==len==>{len(token)}')
-        if len(token) < 3 :
-            break
-        i += 1
-        batch = {"input_ids": token,
-                 "attention_mask": None}
-        m, states = model_engine.training_step(batch, states = states )
-        loss = m.item()
-        if loss < min_loss:
-            m = m * min_loss_fix
-        elif loss > max_loss:
-            m = m * max_loss_fix
-        total += loss
-        mean_loss = total / i
-        model_engine.backward(m)
-        model_engine.step()
-        print(f"\nmean-loss->{mean_loss}")
-    train_states = states
-    states = None
-    gc.collect()
-    torch.cuda.empty_cache()
-    return {"loss": mean_loss}
-
-
-@route('/train/by-token', method='POST')
-def train_by_token():
-    global model_engine, ctx_len, window,train_states
-    item = request.json
-    origin_tokens = item.get('token') or item.get('tokens')
-    if len(origin_tokens) <2:
-        return {"message":"no tokens"}
-
-    gc.collect()
-    torch.cuda.empty_cache()
-    total = 0
-    mean_loss = 0
-    i = 0
+@route('/trainer/by/tx-data', method='POST')
+def train_by_tx_data():
+    global train_state,training_step
+    req = dict(request.json)
+    max_loss = req.get('min_loss', args.min_loss)
+    min_loss = req.get('max_loss', args.max_loss)
+    min_loss_fix = req.get('min_loss_fix', args.min_loss_fix)
+    max_loss_fix = req.get('max_loss_fix', args.max_loss_fix)
+    ctx_len = req.get('ctx_len', args.ctx_len)
+    window = req.get('window', args.window)
+    messages = req.get('messages', [])
+    messages = [Message.new(x) for x in messages]
+    messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
-    while len(origin_tokens) > 0:
-        out = origin_tokens[:ctx_len + 1]
-        origin_tokens = origin_tokens[ctx_len + 1:]
-        tokens.append(out)
-    if train_states is not None:
-        states = copy.deepcopy(train_states)
+    masks = []
+    for token, mask in messages:
+        tokens += token
+        masks += mask
+    if len(tokens) == 0:
+        return {"response": "no tokens"}
+    losses = []
+    total = 0
+    mean_loss = 0
+    i = 0
+    n = 0
+    if train_state is not None:
+        states = copy.deepcopy(train_state)
     else:
-        states = train_states
-    for token in tokens:
-        print(f'==len==>{len(token)}')
-        if len(token) < 3:
-            break
+        states = train_state
+    if debug:
+        print("-train-state-before>", states)
+
+    while len(tokens) > 0:
+        # training_step += 1
         i += 1
-        batch = {"input_ids": token,
-                 "attention_mask": None}
-        m, states = model_engine.training_step(batch, states = states )
+        output = tokens[:ctx_len]
+        output_masks = masks[:ctx_len]
+        tokens = tokens[ctx_len - window:]
+        masks = masks[ctx_len - window:]
+        batch = {'input_ids': output,
+                 'masks': output_masks}
+        m, states = model_engine(batch, states=states)
         loss = m.item()
         if loss < min_loss:
             m = m * min_loss_fix
         elif loss > max_loss:
             m = m * max_loss_fix
-        total += loss
-        mean_loss = total / i
         model_engine.backward(m)
         model_engine.step()
+        total += loss
+        mean_loss = total / i
         print(f"\nmean-loss->{mean_loss}")
-    train_states = copy.deepcopy(states)
-    states = None
+    if states is not None:
+        train_state = copy.deepcopy(states)
+    else:
+        train_state = states
+    if debug:
+        print("-train-state-after>", states)
     gc.collect()
     torch.cuda.empty_cache()
+
     return {"loss": mean_loss}
 
 
-if config['debug'] :
-    messages = [{"text" :"你好啊",
-                 "role" : "text",
-                 "over":False, "token_count":128 }]
+@route('/trainer/by/tokens', method='POST')
+def train_by_tokens():
+    global train_state
+    req = dict(request.json)
+    max_loss = req.get('min_loss', args.min_loss)
+    min_loss = req.get('max_loss', args.max_loss)
+    min_loss_fix = req.get('min_loss_fix', args.min_loss_fix)
+    max_loss_fix = req.get('max_loss_fix', args.max_loss_fix)
+    ctx_len = req.get('ctx_len', args.ctx_len)
+    window = req.get('window', args.window)
+    all_tokens = req.get('tokens', [])
+    if len(all_tokens) == 0:
+        return {"response": "no tokens"}
+    losses = []
+    total = 0
+    mean_loss = 0
+    i = 0
+    n = 0
+    if train_state is not None:
+        states = copy.deepcopy(train_state)
+    else:
+        states = train_state
+    if debug:
+        print("-train-state-before>", states)
+    for tokens in all_tokens:
+        while len(tokens) > 0:
+            i += 1
+            output = tokens[:ctx_len]
+            tokens = tokens[ctx_len - window:]
+            # output_masks = [1 for x in output]
+            batch = {'input_ids': output,
+                     'masks': None}
+            m, states = model_engine(batch, states=states)
+            loss = m.item()
+            if loss < min_loss:
+                m = m * min_loss_fix
+            elif loss > max_loss:
+                m = m * max_loss_fix
+            model_engine.backward(m)
+            model_engine.step()
+
+            total += loss
+            mean_loss = total / i
+            print(f"\nmean-loss->{mean_loss}")
+        losses.append(mean_loss)
+    if states is not None:
+        train_state = copy.deepcopy(states)
+    else:
+        train_state = states
+    if debug:
+        print("-train-state-after>", states)
+    gc.collect()
+    torch.cuda.empty_cache()
+    return {"losses": losses}
+
+# ================
+# infer-state
+# ================
 
 
+@route('/inference/state/reset', method='POST')
+def clean_infer_state():
+    global infer_state
+    req = dict(request.json)
+    infer_state = None
+    return {"message": "success"}
+
+
+@route('/inference/state/save', method='POST')
+def save_infer_state():
+    global infer_state, infer_state_map
+    req = dict(request.json)
+    s_name = req.get('save_state', False)
+    if s_name and infer_state is not None:
+        infer_state_map[s_name] = copy.deepcopy(infer_state).cpu()
+    return {"message": "success"}
+
+
+@route('/inference/state/load', method='POST')
+def load_infer_state():
+    global infer_state, infer_state_map
+    req = request.json
+    req = dict(request.json)
+    s_name = req.get('save_state', False)
+    if s_name:
+        infer_state = infer_state_map.get(s_name, None)
+    else:
+        return {"message": "fail"}
+    if infer_state is not None:
+        infer_state = infer_state.cuda()
+    return {"message": "success"}
+
+
+@route('/inference/state/save-to-disk', method='POST')
+def infer_state_to_disk():
+    global infer_state, infer_state_map
+    req = request.json
+    req = dict(request.json)
+    s_name = req.get('save_name', "default-states")
+    fpath = f"./resources/states_for_infer/{s_name}.pth"
+    torch.save(copy.deepcopy(infer_state_map), fpath)
+    return {"message": "save success"}
+
+
+@route('/inference/model/load', method='POST')
+def infer_model_load():
+    global rnn_model, infer_state
+    req = request.json
+    req = dict(request.json)
+    rnn_model = RWKV_RNN(model_engine.module.state_dict(), args)
+    infer_state = None
+    return {"message": "success"}
+
+# ================
+# infer model
+# ================
+@route('/inference/tx-data', method='POST')
+def infer_by_tx_data():
+    global rnn_model, infer_state
+    req = request.json
+    if rnn_model is None:
+        print(f"===load model===")
+        infer_model_load()
+    messages = req['messages']
+    result = []
+    state = None
+    if infer_state is not None:
+        state = copy.deepcopy(infer_state)
+
+    if debug:
+        print("--before--->", state)
     for message in messages:
-        msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate_no_state(model, msg)
-        print("=====msg",msg)
-    pass
+        infer_config = {"temperature": message.get("temperature", 0.1),
+                        "top_p": message.get('top_p', 0.85),
+                        "token_count": message.get('token_count', 256),
+                        "token_stop": message.get('token_stop', []),
+                        "alpha_presence": message.get('alpha_presence', 0.2),
+                        "alpha_decay": message.get('alpha_decay', 0.996),
+                        "alpha_frequency": message.get('alpha_frequency', 0.2),
+                        "token_ban": message.get('token_ban', [])
+                        }
+        msg, state = rnn_model.generate(tokenizer,
+                                        Message.new(message),
+                                        infer_config,
+                                        state=state)
+        result.append(msg.json())
+    infer_state = copy.deepcopy(state)
+    if debug:
+        print("--after--->", state)
+    return {'messages': result}
 
-    print("===train test start==")
-    train_data = [x for x in range(0,6144)]
-    batch = {"input_ids": train_data,
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
-    model_engine.step()
-    gc.collect()
-    torch.cuda.empty_cache()
 
-    print("===train test over==",loss)
-    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
-
-    messages = [{"text" :"你好啊", "role" : "text","over":False, "token_count":128 } ]
+@route('/inference/by/messages', method='POST')
+def infer_by_messages():
+    global rnn_model, infer_state
+    req = dict(request.json)
+    if rnn_model is None:
+        print("===load model===")
+        infer_model_load()
+    messages = req['messages']
+    result = []
+    state = None
+    if infer_state is not None:
+        state = copy.deepcopy(infer_state)
     for message in messages:
-        msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate(rwkv_rnn,msg)
-        print("==msg==",msg)
-    print("===train test start==")
-    rwkv_rnn = None
-    gc.collect()
-    torch.cuda.empty_cache()
+        infer_config = {"temperature": message.get("temperature", 0.1),
+                        "top_p": message.get('top_p', 0.85),
+                        "token_count": message.get('token_count', 256),
+                        "token_stop": message.get('token_stop', []),
+                        "alpha_presence": message.get('alpha_presence', 0.2),
+                        "alpha_decay": message.get('alpha_decay', 0.996),
+                        "alpha_frequency": message.get('alpha_frequency', 0.2),
+                        "token_ban": message.get('token_ban', [])
+                        }
+        msg, state = rnn_model.generate(tokenizer,
+                                        Message.new(message),
+                                        infer_config,
+                                        state=state)
+        result.append(msg.json())
+    infer_state = copy.deepcopy(state)
+    return {'messages': result}
 
-    train_data = [x for x in range(0,6144)]
-    batch = {"input_ids": train_data,
-             "attention_mask": None}
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
+
+@route('/inference/by/tokens', method='POST')
+def infer_by_tokens():
+    global rnn_model, infer_state
+    req = dict(request.json)
+    if rnn_model is None:
+        print(f"===load model===")
+        infer_model_load()
+    tokens = req['tokens']
+    result = []
+    state = None
+    if infer_state is not None:
+        state = copy.deepcopy(infer_state)
+
+    infer_config = {"temperature": req.get("temperature", 0.1),
+                    "top_p": req.get('top_p', 0.85),
+                    "token_count": req.get('token_count', 256),
+                    "token_stop": req.get('token_stop', []),
+                    "alpha_presence": req.get('alpha_presence', 0.2),
+                    "alpha_decay": req.get('alpha_decay', 0.996),
+                    "alpha_frequency": req.get('alpha_frequency', 0.2),
+                    "token_ban": req.get('token_ban', [])
+                    }
+    msg, state = rnn_model.generate(tokenizer,
+                                    Message.new({}),
+                                    infer_config,
+                                    state=state)
+    result.append(msg.json())
+    infer_state = copy.deepcopy(state)
+    return {'messages': result}
+
+
+# ================
+# utils
+# ================
+
+if False:
+    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
+    batch = {"input_ids": data}
+    loss = model_engine.training_step(batch)
+    print(f"-loss--->{loss}")
+    model_engine.backward(loss)
     model_engine.step()
-    gc.collect()
-    torch.cuda.empty_cache()
-    print("===train test over==",loss)
-    rwkv_rnn = RWKV_RNN(model_engine.module.state_dict())
-    for message in messages:
-        msg = inferencer.scene.add_message(message)
-        msg = inferencer.generate(rwkv_rnn,msg)
-        print("==msg==",msg)
 
-    rwkv_rnn = None
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    m = model_engine.training_step(batch, model_engine=model_engine)
-    loss = m.item()
-    model_engine.backward(m)
+    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
+    batch = {"input_ids": data}
+    loss = model_engine.training_step(batch)
+    print(f"-loss--->{loss}")
+    model_engine.backward(loss)
     model_engine.step()
-    print("===train test over==",loss)
 
+    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
+    batch = {"input_ids": data}
+    loss = model_engine.training_step(batch)
+    print(f"-loss--->{loss}")
+    model_engine.backward(loss)
+    model_engine.step()
 
-if not config['debug']:
-    run(host='0.0.0.0', port=config['port'])
+    rnn_model = RWKV_RNN(model_engine.module.state_dict(), dtype='bf16')
+    rnn_model.generate(tokenizer,
+                       Message.new(
+                           {"role": "text", "text": "\nUser:what's your name?\n\nAssistant:"}),
+                       {"temperature": 1.0,
+                        "top_p": 0.85,
+                        "token_count": 256,
+                        "token_stop": [0],
+                        "alpha_presence": 0.2,
+                        "alpha_decay": 0.996,
+                        "alpha_frequency": 0.2,
+                        "token_ban": []
+                        },
+                       None)
+
+if True:
+    run(host='0.0.0.0', port=3000)
