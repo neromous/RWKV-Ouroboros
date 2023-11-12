@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint as torch_checkpoint
-from deepspeed.runtime.activation_checkpointing.checkpointing import non_reentrant_checkpoint
 import numpy as np
 import time
 import types
@@ -24,7 +23,6 @@ LORA_CONFIG['parts'] = set(LORA_CONFIG['parts'])
 def __nop(ob):
     return ob
 
-ckpt = non_reentrant_checkpoint
 
 MyModule = nn.Module
 MyFunction = __nop
@@ -726,19 +724,6 @@ class RWKV(nn.Module):
                                           args.n_embd,
                                           x.device,
                                           x.dtype)
-        # for i, (block, block_state) in enumerate(zip(self.blocks,
-        #                                            BlockStateList(last_shift_states,
-        #                                                           last_wkv_states))):
-        #     # x = x.to(block.device)
-        #     if args.grad_cp == 1 and i > 0 : #and i < len(self.blocks)-1
-        #         if args.lora:
-        #             x, new_block_state = ckpt(block, x, block_state,use_reentrant=False)
-        #         else:
-        #             x, new_block_state = ckpt(block, x, block_state,use_reentrant=False)
-        #     else:
-        #         x, new_block_state = block(x, block_state)
-        #     new_states[i] = new_block_state
-        # # x = x.to(self.ln_out.device)
 
         if last_shift_states is None:
             cur_bs_list = BlockStateList.create(

@@ -1,23 +1,14 @@
-import numpy as np
+<import numpy as np
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 import types, torch
 from torch.nn import functional as F
 from tokenizers import Tokenizer
 from tqdm import tqdm
 import torch.nn as nn
-from utils import log, load_config
+from config import log, load_config
 config = load_config()
 datatype = config['environ']['RWKV_FLOAT_MODE']
-# args = types.SimpleNamespace()
-# args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-430m/RWKV-4-Pile-430M-20220808-8066'
-# args.n_layer = 24
-# args.n_embd = 1024
 
-# context = "\nIn a shocking finding, scientist discovered a herd of dragons living in a remote, previously unexplored valley, in Tibet. Even more surprising to the researchers was the fact that the dragons spoke perfect Chinese."
-# NUM_TRIALS = 3
-# LENGTH_PER_TRIAL = 100
-# TEMPERATURE = 1.0
-# TOP_P = 0.85
 
 def sample_logits(logits:torch.tensor, temperature=0.1, top_p=0.1, top_k=0):
     probs = F.softmax(logits.float(), dim=-1)

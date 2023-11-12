@@ -599,7 +599,7 @@ class RWKV(nn.Module):
             return x
 
 
-    def training_step(self, batch:dict,mask=None,**kwargs):
+    def training_step(self, batch:dict, mask=None,**kwargs):
         seq = batch['input_ids']
         mask = batch.get('attention_mask',None)
         idx = seq[:-1]

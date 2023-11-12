@@ -69,8 +69,8 @@ model = RWKV(load_model=config['model_path'],
              dropout = config['trainer']['dropout'],
              grad_cp = config['trainer']['grad_cp'],
              lora = config['lora'],
-             lr_init=1.0e-6,
-             lr_final=1.0e-6,
+             lr_init=1.0e-5,
+             lr_final=1.0e-5,
              dtype =  config['environ']['RWKV_FLOAT_MODE'],
              warmup_steps=config['trainer']['warmup_steps'])
 
@@ -91,6 +91,23 @@ init_state = None
 not_cleane_yet = True
 state_storage = {}
 train_states =  None
+
+
+@route('/train-state/reset', method='POST')
+def reset_state():
+    global train_states
+    print("\nbefor->", train_states)
+    train_states = None
+    print("\nafter0->",train_states)
+    return {"messages": 'reset'}
+
+@route('/train-state/save', method='POST')
+def state_to_disk():
+    global train_states
+    model_name = item.get("train_state_name","default-train-state")
+    fpath = f"{proj_dir}/{model_name}.pth"
+    torch.save(copy.deepcopy(train_states), fpath)
+    return {"messages": 'reset'}
 
 
 @route('/inference/load-model', method='POST')
@@ -148,9 +165,12 @@ def reset_state():
 @route('/state/save', method='POST')
 def save_state():
     global inferencer, state_storage, state, init_state
+    model_name = item.get("train_state_name","default-state")
+    fpath = f"{proj_dir}/{model_name}.pth"
     item = request.json
     state_name = item.get('save_state', 'default')
     state_storage[state_name] = copy.deepcopy(state).cpu()
+    # torch.save(copy.deepcopy(state), fpath)
     return {"messages": 'save-state'}
 
 @route('/state/load', method='POST')
