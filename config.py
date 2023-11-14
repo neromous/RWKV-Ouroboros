@@ -66,7 +66,7 @@ config = {
             "alpha_frequency": 0.40,
             "alpha_presence": 0.40,
             "alpha_decay": 0.996,
-            "token_ban": [0, 65530, 65531, 65532, 65533, 65534],
+            "token_ban": [0],
             "token_stop": [65535],
             "chunk_len": 128,
             "token_count": 0,
@@ -81,65 +81,186 @@ config = {
     },
     "role": {
         "system": {
-            # "prefix": tokenizer.encode('System: '),
-            # "postfix": [261]
-            "prefix": [65530, 65531],
-            "postfix": [65535]
-        },
-        "ego": {
-            "prefix": [65530, 65531],
-            "postfix": [65535]
-        },
-        "master": {
-            "prefix": [65530, 65532],
+            "prefix": [65500],
             "postfix": [65535]
         },
         "request": {
-            "prefix": [65530, 65532],
-            #"prefix": tokenizer.encode('User: '),
-            "postfix": [261]
-        },
-        "user": {
-            "prefix": [65530, 65532],
+            "prefix":  [65510],
             "postfix": [65535]
         },
         "think": {
-            "prefix": [65530, 65533],
-            "postfix": [65535]
-        },
-        "analysis": {
-            "prefix": [65530, 65533],
+            "prefix": [65520],
             "postfix": [65535]
         },
         "response": {
-            "prefix": [65530, 65534],
-            #"prefix": tokenizer.encode('Assistant: '),
-            "postfix": [261]
-        },
-        "robot": {
-            "prefix": [65530, 65534],
+            "prefix": [65530],
             "postfix": [65535]
-        },
-        "claude": {
-            "prefix": [65530, 65534],
-            "postfix": [65535]
-        },
-        "book": {
-            "prefix": [],
-            "postfix": [261]
-        },
-        "context": {
-            "prefix": [],
-            "postfix": []
-        },
-        "other": {
-            "prefix": [],
-            "postfix": []
         },
         "text": {
             "prefix": [],
             "postfix": [261]
-        }
+        },
+        "text-raw": {
+            "prefix": [],
+            "postfix": []
+        },
+
+        "question": {
+            "prefix": tokenizer.encode('Question: '),
+            "postfix": [261]
+        },
+        "answer": {
+            "prefix": tokenizer.encode('Answer: '),
+            "postfix": [261]
+        },
+        "user": {
+            "prefix": tokenizer.encode('User: '),
+            "postfix": [261]
+        },
+        "assistant": {
+            "prefix": tokenizer.encode('Assistant: '),
+            "postfix": [261]        },
+        "instruction": {
+            "prefix": tokenizer.encode('## Instruction:\n'),
+            "postfix": [261]
+        },
+        "input": {
+            "prefix": tokenizer.encode('## Input:\n'),
+            "postfix": [261]
+        },
+        "output": {
+            "prefix": tokenizer.encode('## Output:\n'),
+            "postfix": [261]
+        },
+        "robot.listen.from-user": {
+            "prefix":  [65510],
+            "postfix": [65535]
+        },
+        "robot.thoughts": {
+            "prefix": [65520],
+            "postfix": [65535]
+        },
+
+        "robot.reasoning": {
+            "prefix": [65522],
+            "postfix": [65535]
+        },
+
+        "robot.plan": {
+            "prefix": [65524],
+            "postfix": [65535]
+        },
+
+        "robot.plan": {
+            "prefix": [65524],
+            "postfix": [65535]
+        },
+        "robot.response": {
+            "prefix": [65530],
+            "postfix": [65535]
+        },
+        "data.text": {
+            "prefix": [],
+            "postfix": [261]
+        },
+        "data.text.raw": {
+            "prefix": [],
+            "postfix": []
+        },
+        "infer.form.question": {
+            "prefix": tokenizer.encode('Question: '),
+            "postfix": [261]
+        },
+        "infer.form.answer": {
+            "prefix": tokenizer.encode('Answer: '),
+            "postfix": [261]
+        },
+        "infer.form.q": {
+            "prefix": tokenizer.encode('Q: '),
+            "postfix": [261]
+        },
+        "infer.form.a": {
+            "prefix": tokenizer.encode('A: '),
+            "postfix": [261]
+        },
+
+        "infer.form.user": {
+            "prefix": tokenizer.encode('User: '),
+            "postfix": [261]
+        },
+        "infer.form.assistant": {
+            "prefix": tokenizer.encode('Assistant: '),
+            "postfix": [261]        },
+        "infer.form.instruction": {
+            "prefix": tokenizer.encode('## Instruction:\n'),
+            "postfix": [261]
+        },
+        "infer.form.input": {
+            "prefix": tokenizer.encode('## Input:\n'),
+            "postfix": [261]
+        },
+        "infer.form.output": {
+            "prefix": tokenizer.encode('## Output:\n'),
+            "postfix": [261]
+        },
+        "org.level1": {
+            "prefix": tokenizer.encode('\n* '),
+            "postfix": [261]
+        },
+        "org.level2": {
+            "prefix": tokenizer.encode('\n** '),
+            "postfix": [261]
+        },
+        "org.level3": {
+            "prefix": tokenizer.encode('\n*** '),
+            "postfix": [261]
+        },
+        "org.level4": {
+            "prefix": tokenizer.encode('\n**** '),
+            "postfix": [261]
+        },
+        "code.md": {
+            "prefix": tokenizer.encode('\n```\n'),
+            "postfix": tokenizer.encode('\n```\n'),
+        },
+        "code.md.javascript": {
+            "prefix": tokenizer.encode('\n```javascript\n'),
+            "postfix": tokenizer.encode('\n```\n'),
+        },
+        "code.md.python": {
+            "prefix": tokenizer.encode('\n```python\n'),
+            "postfix": tokenizer.encode('\n```\n'),
+        },
+        "code.md.cmd": {
+            "prefix": tokenizer.encode('\n```cmd\n'),
+            "postfix": tokenizer.encode('\n```\n'),
+        },
+        "code.md.clojure": {
+            "prefix": tokenizer.encode('\n``` clojure\n'),
+            "postfix": tokenizer.encode('\n```\n'),
+        },
+        "code.org": {
+            "prefix": tokenizer.encode('\n#+begin_src \n'),
+            "postfix": tokenizer.encode('\n#+end_src\n'),
+        },
+        "code.org.clojure": {
+            "prefix": tokenizer.encode('\n#+begin_src clojure\n'),
+            "postfix": tokenizer.encode('\n#+end_src\n'),
+        },
+        "code.org.python": {
+            "prefix": tokenizer.encode('\n#+begin_src python\n'),
+            "postfix": tokenizer.encode('\n#+end_src\n'),
+        },
+        "code.org.edn": {
+            "prefix": tokenizer.encode('\n#+begin_data edn\n'),
+            "postfix": tokenizer.encode('\n#+end_data\n'),
+        },
+
+
+
+
+
+
     }}
 
 config['trainer']['tokenizer'] = TRIE_TOKENIZER(config['trainer']['tokenizer'])
