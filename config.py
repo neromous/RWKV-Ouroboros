@@ -88,6 +88,7 @@ config = {
             "prefix":  [65510],
             "postfix": [65535]
         },
+
         "think": {
             "prefix": [65520],
             "postfix": [65535]
@@ -104,7 +105,14 @@ config = {
             "prefix": [],
             "postfix": []
         },
-
+        "raw": {
+            "prefix": [],
+            "postfix": []
+        },
+        "tokens": {
+            "prefix": [],
+            "postfix": []
+        },
         "question": {
             "prefix": tokenizer.encode('Question: '),
             "postfix": [261]
@@ -255,12 +263,6 @@ config = {
             "prefix": tokenizer.encode('\n#+begin_data edn\n'),
             "postfix": tokenizer.encode('\n#+end_data\n'),
         },
-
-
-
-
-
-
     }}
 
 config['trainer']['tokenizer'] = TRIE_TOKENIZER(config['trainer']['tokenizer'])

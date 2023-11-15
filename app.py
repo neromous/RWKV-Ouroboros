@@ -134,8 +134,8 @@ def train_model_to_disk():
 def train_by_tx_data():
     global train_state,training_step
     req = dict(request.json)
-    max_loss = req.get('min_loss', args.min_loss)
-    min_loss = req.get('max_loss', args.max_loss)
+    min_loss = req.get('max_loss', args.min_loss)
+    max_loss = req.get('min_loss', args.max_loss)
     min_loss_fix = req.get('min_loss_fix', args.min_loss_fix)
     max_loss_fix = req.get('max_loss_fix', args.max_loss_fix)
     ctx_len = req.get('ctx_len', args.ctx_len)
@@ -198,8 +198,8 @@ def train_by_tx_data():
 def train_by_tokens():
     global train_state
     req = dict(request.json)
-    max_loss = req.get('min_loss', args.min_loss)
-    min_loss = req.get('max_loss', args.max_loss)
+    min_loss = req.get('max_loss', args.min_loss)
+    max_loss = req.get('min_loss', args.max_loss)
     min_loss_fix = req.get('min_loss_fix', args.min_loss_fix)
     max_loss_fix = req.get('max_loss_fix', args.max_loss_fix)
     ctx_len = req.get('ctx_len', args.ctx_len)

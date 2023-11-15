@@ -12,12 +12,15 @@ class Message:
     def valid_fields(cls):
         r = [['prefix', str, ''],
              ['postfix', str, ''],
+             ['prefix_tokens', list, []],
+             ['postfix_tokens', list, []],
              ['role', str, 'text'],
              ['text', str, ''],
              ['response', str, ''],
              ['over', bool, True],
              ['no_loss', bool, False],
              ['mask', float, 1.0],
+             ['role_mask', float, 1.0],
              ]
         return r
 
@@ -48,17 +51,29 @@ class Message:
     def cover_with_role(self, tokens):
         prefix = config['role'][self.role]['prefix']
         postfix = config['role'][self.role]['postfix']
+        prefix = prefix + self.prefix_tokens
+        postfix = self.postfix_tokens + postfix
         if self.over:
             return prefix + tokens + postfix
         else:
             return prefix + tokens
 
+    def cover_with_role_mask(self, tokens):
+        prefix = config['role'][self.role]['prefix']
+        postfix = config['role'][self.role]['postfix']
+        prefix_mask = [self.role_mask for x in prefix] + [self.role_mask for x in self.prefix_tokens ]
+        postfix_mask =  [self.role_mask for x in self.postfix_tokens ] + [self.role_mask for x in postfix]
+        if self.over:
+            return  prefix_mask  + [self.mask for x in tokens] + postfix_mask
+        else:
+            return prefix +  [self.mask for x in tokens]
+
+
     def tokens(self, for_infer=True):
         tokens = self.tokenizer(for_infer=True).encode(
             self.prefix + self.text + self.postfix)
+        masks = self.cover_with_role_mask(tokens)
+        tokens = self.cover_with_role(tokens)
         if self.no_loss:
             masks = [0 for x in tokens]
-        else:
-            masks = [self.mask for x in tokens]
-        tokens = self.cover_with_role(tokens)
         return tokens, masks
