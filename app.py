@@ -132,7 +132,7 @@ def train_model_to_disk():
 
 @route('/trainer/by/tx-data', method='POST')
 def train_by_tx_data():
-    global train_state,training_step
+    global train_state,training_step, debug
     req = dict(request.json)
     min_loss = req.get('max_loss', args.min_loss)
     max_loss = req.get('min_loss', args.max_loss)
@@ -159,9 +159,10 @@ def train_by_tx_data():
         states = copy.deepcopy(train_state)
     else:
         states = train_state
+    debug = req.get('debug', debug)
     if debug:
         print("-train-state-before>", states)
-
+        print("-tokens->", tokens)
     while len(tokens) > 0:
         # training_step += 1
         i += 1
@@ -194,9 +195,10 @@ def train_by_tx_data():
     return {"loss": mean_loss}
 
 
+
 @route('/trainer/by/tokens', method='POST')
 def train_by_tokens():
-    global train_state
+    global train_state,debug
     req = dict(request.json)
     min_loss = req.get('max_loss', args.min_loss)
     max_loss = req.get('min_loss', args.max_loss)
@@ -312,7 +314,7 @@ def infer_model_load():
 # ================
 @route('/inference/tx-data', method='POST')
 def infer_by_tx_data():
-    global rnn_model, infer_state
+    global rnn_model, infer_state, debug
     req = request.json
     if rnn_model is None:
         print(f"===load model===")
@@ -322,7 +324,7 @@ def infer_by_tx_data():
     state = None
     if infer_state is not None:
         state = copy.deepcopy(infer_state)
-
+    debug = req.get('debug',debug)
     if debug:
         print("--before--->", state)
     for message in messages:
@@ -379,7 +381,7 @@ def infer_by_messages():
 
 @route('/inference/by/tokens', method='POST')
 def infer_by_tokens():
-    global rnn_model, infer_state
+    global rnn_model, infer_state, debug
     req = dict(request.json)
     if rnn_model is None:
         print(f"===load model===")
@@ -411,43 +413,6 @@ def infer_by_tokens():
 # ================
 # utils
 # ================
-
-if False:
-    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
-    batch = {"input_ids": data}
-    loss = model_engine.training_step(batch)
-    print(f"-loss--->{loss}")
-    model_engine.backward(loss)
-    model_engine.step()
-
-    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
-    batch = {"input_ids": data}
-    loss = model_engine.training_step(batch)
-    print(f"-loss--->{loss}")
-    model_engine.backward(loss)
-    model_engine.step()
-
-    data = tokenizer.encode(' My name is gpt. and My favorite color is red')
-    batch = {"input_ids": data}
-    loss = model_engine.training_step(batch)
-    print(f"-loss--->{loss}")
-    model_engine.backward(loss)
-    model_engine.step()
-
-    rnn_model = RWKV_RNN(model_engine.module.state_dict(), dtype='bf16')
-    rnn_model.generate(tokenizer,
-                       Message.new(
-                           {"role": "text", "text": "\nUser:what's your name?\n\nAssistant:"}),
-                       {"temperature": 1.0,
-                        "top_p": 0.85,
-                        "token_count": 256,
-                        "token_stop": [0],
-                        "alpha_presence": 0.2,
-                        "alpha_decay": 0.996,
-                        "alpha_frequency": 0.2,
-                        "token_ban": []
-                        },
-                       None)
 
 if True:
     run(host='0.0.0.0', port=3000)

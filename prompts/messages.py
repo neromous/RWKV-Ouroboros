@@ -1,11 +1,10 @@
-from config import config
+from config import config, prefix_tokenizer
 import copy
 import re
 
 
 class PromptConfig:
     pass
-
 
 class Message:
     @classmethod
@@ -27,9 +26,10 @@ class Message:
     @classmethod
     def tokenizer(cls, for_infer=True):
         if for_infer:
-            return config['inference']['tokenizer']
+            func = config['inference']['tokenizer']
         else:
-            return config['trainer']['tokenizer']
+            func =  config['trainer']['tokenizer']
+        return func
 
     @classmethod
     def new(cls, args: dict, **kwargs):
@@ -70,8 +70,9 @@ class Message:
 
 
     def tokens(self, for_infer=True):
-        tokens = self.tokenizer(for_infer=True).encode(
-            self.prefix + self.text + self.postfix)
+        tokens = prefix_tokenizer(self.prefix + self.text + self.postfix,self.tokenizer(for_infer=for_infer))
+        # tokens = self.tokenizer(for_infer=True).encode(
+        #     self.prefix + self.text + self.postfix)
         masks = self.cover_with_role_mask(tokens)
         tokens = self.cover_with_role(tokens)
         if self.no_loss:
