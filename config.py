@@ -6,15 +6,16 @@ config = {
     "model_name": "default",
     "proj_dir": "/home/neromous/Documents/ouroboros/RWKV-Ouroboros/",
     "port": 3000,
-    "debug": True,
+    "debug": False,
     "model": {
         "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
-        "ctx_len": 3200,
+        "ctx_len": 512,
         "dtype": "fp32",
+        "head_size": 64,
         "head_size_a": 64,
         "head_size_divisor": 8,
         "ds_config": './ds_config/fp32_config.config',
@@ -32,7 +33,8 @@ config = {
         "infctx_on": True,
         "warmup_steps": 8,
         "grad_cp": 1,
-        "dropout": 0.001,
+        #"dropout": 0.001,
+        "dropout": 0,
         "window": 0,
         "min_loss": 0.5,
         "max_loss": 1.5,
@@ -81,21 +83,25 @@ config = {
     },
     "role": {
         "system": {
-            "prefix": [65500],
-            "postfix": [65535]
+            "prefix": [65530],
+            "postfix": []
         },
         "request": {
-            "prefix":  [65510],
-            "postfix": [65535]
+            "prefix":  [65531],
+            "postfix": []
         },
 
         "think": {
-            "prefix": [65520],
-            "postfix": [65535]
+            "prefix": [65532],
+            "postfix": []
+        },
+        "observe": {
+            "prefix": [65533],
+            "postfix": [],
         },
         "response": {
-            "prefix": [65530],
-            "postfix": [65535]
+            "prefix": [65534],
+            "postfix": []
         },
         "text": {
             "prefix": [],
@@ -145,11 +151,12 @@ config = {
             "postfix": [261]
         }},
     "vocab" : {
-        "<|system|>"  : [65500],
-        "<|request|>" : [65510],
-        "<|think|>"  :  [65520],
-        "<|response|>" : [65530],
-        "<|over|>" : [65535],
+        "<|system|>": [65530],
+        "<|request|>": [65531],
+        "<|think|>":  [65532],
+        "<|observe|>":  [65533],
+        "<|response|>": [65534],
+        "<|over|>": [65535],
     }
 
 }

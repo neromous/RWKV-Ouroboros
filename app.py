@@ -48,7 +48,7 @@ if args.rwkv_version == "v4":
     from models.v4.runner import RWKV_RNN
 elif args.rwkv_version == "v5":
     if args.infctx_on:
-        from models.v5.infctx import RWKV
+        from models.v5.model import RWKV
     else:
         from models.v5.origin import RWKV
     train_model = RWKV(args)
@@ -69,6 +69,8 @@ if args.infctx_on:
     @route('/trainer/state/reset', method='POST')
     def clean_train_state():
         global train_state
+        gc.collect()
+        torch.cuda.empty_cache()
         # req = dict(request.json)
         train_state = None
         # ================
