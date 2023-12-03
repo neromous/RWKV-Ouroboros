@@ -52,7 +52,7 @@ config = {
         "pre_ffn": 0,
         "head_qk": 0,
         "layerwise_lr": 1,
-        "lr_init": 1.0e-5,
+        "lr_init": 2.0e-5,
         "beta1": 0.9,
         "beta2": 0.99,
         "adam_eps": 1.0e-8,
