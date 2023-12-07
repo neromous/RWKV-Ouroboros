@@ -271,9 +271,12 @@ def save_infer_state():
     global infer_state, infer_state_map
     req = dict(request.json)
     s_name = req.get('save_state', False)
+    #***
     if s_name and infer_state is not None:
         infer_state_map[s_name] = copy.deepcopy(infer_state).cpu()
-    return {"message": "success"}
+        return {"message": "success"}
+    else:
+        return {"message": "fail"}
 
 
 @route('/inference/state/load', method='POST')
@@ -281,14 +284,15 @@ def load_infer_state():
     global infer_state, infer_state_map
     req = request.json
     req = dict(request.json)
-    s_name = req.get('save_state', False)
+    #***
+    s_name = req.get('load_state', False)
     if s_name:
         infer_state = infer_state_map.get(s_name, None)
+        infer_state = infer_state.cuda()
+        return {"message": "success"}
     else:
         return {"message": "fail"}
-    if infer_state is not None:
-        infer_state = infer_state.cuda()
-    return {"message": "success"}
+
 
 
 @route('/inference/state/save-to-disk', method='POST')
