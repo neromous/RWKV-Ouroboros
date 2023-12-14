@@ -14,13 +14,12 @@ config = {
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
-        "ctx_len": 512,
+        "ctx_len": 4096,
         "dtype": "fp32",
         "head_size": 64,
         "head_size_a": 64,
         "head_size_divisor": 8,
         "ds_config": './ds_config/fp32_config.config',
-
     },
     "lora_config": {
         "lora": False,
@@ -53,7 +52,7 @@ config = {
         "pre_ffn": 0,
         "head_qk": 0,
         "layerwise_lr": 1,
-        "lr_init": 1.0e-5,
+        "lr_init": 2.0e-5,
         "beta1": 0.9,
         "beta2": 0.99,
         "adam_eps": 1.0e-8,
@@ -151,13 +150,14 @@ config = {
             "prefix": tokenizer.encode('## Output:\n'),
             "postfix": [261]
         }},
-    "vocab" : {
+    "vocab": {
         "<|system|>": [65530],
         "<|request|>": [65531],
         "<|think|>":  [65532],
         "<|observe|>":  [65533],
         "<|response|>": [65534],
         "<|over|>": [65535],
+        "<|page|>": [65514, 65516, 65514, 261],
     }
 
 }

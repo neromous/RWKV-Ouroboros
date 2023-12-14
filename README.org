@@ -21,6 +21,7 @@ dd dsadasdf
   - for_emacs  内含emacs插件文件。 
   - for_vscode 内含vscode端插件（开发中）
   - client_code  具体的python脚本， 用于支持插件的调用。
+
   - 前端代码： 目前已发布WebUI版本，目前计划以clojurescript的re-frame框架为基础开发新版本。 
 - rwkv_models： 训练实现
 - models： 训练数据抽象类
@@ -28,11 +29,14 @@ dd dsadasdf
 
   
 
+
+ 
 * 项目启动与支持
 项目主体启动代码
 ```bash
-deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed 
+deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed
 ```
+
 webui前端启动代码
 ```
 streamlit run WebUI.py
@@ -52,7 +56,7 @@ https://github.com/neromous/RWKV-Ouroboros-app
 - [x] 提供训练与推理实时同步机制（cpu base）。
 - [ ] 提供docker版镜像。
 - [ ] 提供前端项目代码。 
-- [ ] 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）。
+- [x] 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）,base on clojure。
 - [ ] 增加lora支持。
 - [x] 减少推理预训练模型间切换时间 （30s-> 5s）
 - [ ]增加llama系模型支持。

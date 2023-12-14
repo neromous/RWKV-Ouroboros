@@ -1,4 +1,5 @@
 import requests
 
-m = requests.post("http://0.0.0.0:3000/train/save-weight",json={'model_name':'3b-stage-infctx'})
+m = requests.post("http://0.0.0.0:3000/trainer/model/save-to-disk",
+                  json={'model_name':'default'})
 print(m.json())
