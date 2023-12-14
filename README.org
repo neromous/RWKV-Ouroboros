@@ -21,18 +21,17 @@ dd dsadasdf
   - for_vscode 内含vscode端插件（开发中）
   - client_code  具体的python脚本， 用于支持插件的调用。
   - 前端代码： 计划中，目前计划以clojurescript的re-frame框架为基础开发。 
-- rwkv_models： 训练实现
-- models： 训练数据抽象类
-- data： 训练数据抽象类的实体化存储位置，暂时使用jsonl形式。 其中sft.org存储于该目录下，方便编辑器编辑修改。
+- prompts： 对Inference中信息的抽象
+- models： 训练实现
+- resouces： 包括词表及相关资源。
+- config.py : 配置文件，用于配置训练代码
 
-  
-
+ 
 * 项目启动与支持
 项目启动代码
 ```bash
-deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed 
+deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed
 ```
-
 在3000端口建立服务
 
 资源需求
@@ -45,7 +44,7 @@ deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed
 - [x] 提供训练与推理实时同步机制（cpu base）。
 - [ ] 提供docker版镜像。
 - [ ] 提供前端项目代码。 
-- [ ] 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）。
+- [x] 提供实时图数据库基础的训练数据管理（基于datomic或pydatomic）,base on clojure。
 - [ ] 增加lora支持。
 - [x] 减少推理预训练模型间切换时间 （30s-> 5s）
 - [ ]增加llama系模型支持。

@@ -1,0 +1,147 @@
+#+Title: 入门说明
+* the RWKV Ouroboros
+
+一个用于实现RWKV在线式训练的框架。
+** Why Shoud You Care?
+或许是这样的
+1. 你希望使用rwkv在低配置硬件上进行微调。
+2. 你希望采用简单直接的方式为rwkv添加知识和事实。
+3. 你希望通过面向数据的方式进行微调和应用开发。
+4. 你有一大堆资料，希望以通过一个开箱即用的方式进行微调并达到预期目标。
+5. 你希望你的RKWV模型可以从环境中实时获取数据和信息，并且将其加入训练和推理当中。
+6. 还有一堆其他的crazy idea。
+
+** Still In Developing
+
+
+
+* The Basics
+** Homoiconic
+Clojureis a modern LISP, and LISPs are homoiconic.
+You program in a LISP by creating and assembling LISP data structures. The syntax is data literals. Dwell on that for a moment. You are programming in data. The functions which later transform data, themselves start as data. Computation involves evaluating data. Macros, running at compile time, take code (which is just data) and rewrite it to other code (other data). The duality of code and data runs deep.
+
+So, Clojurists place particular emphasis on the primacy of data.
+
+They meditate on aphorisms like data is the ultimate in late binding. They exalt inequalities like data > functions > macros. (They also re-watch Rich Hickey videos a bit too much, and wish that their hair was darker and more curly.)
+
+I cannot stress enough what a big deal this is. It will seem like a syntax curiosity at first but, when the penny drops for you on this, it tends to be a profound moment.
+
+So, it will come as no surprise, then, to find that rwkv ourboros has a data-oriented design. Events are data. Effects are data. DOM is data. The functions which transform data are registered and looked up via data. Interceptors (data) are preferred to middleware (higher order functions). Etc.
+
+that idea I borrow from the re-frame framework to enforce the rwkv inference and training.
+
+** The Data Loop
+
+在架构上，我们实现了一种单向控制流。
+
+如果要构建llm使用的业务流程， 你需要将推理流程转化为结构化语言，这种语言会转换为字符串和token，进而驱动模型训练和推理。
+通过这种方式， 同时可以将外部effect信息混合进数据管线，以实现模型在训练和推理时同外部进行数据交换。
+
+
+这是过去的方式
+#+begin_src plantuml :file ./resources/data-loop.png
+
+  (*) --> "字符串"
+  "字符串" --> "tokens"
+  "tokens" --> "推理"
+  "tokens" --> "训练"
+
+#+end_src
+
+#+RESULTS:
+[[file:./resources/data-loop.png]]
+
+这可能是一种未来使用和训练的方式
+#+begin_src plantuml :file ./resources/data-loop.png
+
+  (*) --> "标记语言"
+  "标记语言" --> "字符串"
+  "标记语言" --> "外部effect信息"
+  "外部effect信息" --> "嵌入外部effect的字符串"
+  "字符串" --> "嵌入外部effect的字符串"
+  "嵌入外部effect的字符串" --> "tokens"
+  "tokens" --> "训练"
+  "训练" -> "更新模型"
+  "tokens" --> "推理"
+  "更新模型" -> "推理"
+  "推理" -> (*)
+
+#+end_src
+
+#+RESULTS:
+[[file:./resources/data-loop.png]]
+
+
+
+** the schema for inference and train.
+
+为了实现复杂任务的调度， 使用了一种简化版的schema。
+
+当你获取一个json，其内容如下。
+#+begin_src python
+    origin_data = {"question" : "string for question",
+                   "answer" : "string for answer"}
+#+end_src
+
+#+RESULTS:
+: None
+
+为了通过sp token进行训练。 你需要将其转换为如下token
+#+begin_example
+[65514,65516,65514,261,65531,42324,21700,39416,106,65534,42324,21700,45175]
+#+end_example
+
+
+在这时，你可以通过以下步骤来实现这一点
+1. 转换为标记语言
+#+begin_src clojure
+  [:page
+   [:request "string for question"]
+   [:response "string for answer"]]
+#+end_src
+
+该标记语言具有调用cmd、api、本地文件、数据库的能力。 详见示例和语法说明。
+
+2. 解析：通过一个解析器，将标记语言解析为格式化的问答对
+
+#+begin_src clojure
+  (parser [:page
+           [:request "string for question"]
+           [:ersponse "string for answer"]])
+#+end_src
+
+#+RESULTS:
+: <|page|><|request|>string for question<|response|>string for answer
+
+3. 完成针对标签的tokenizer
+#+begin_src clojure
+  (tokenizer (parser [:page
+                      [:request "string for question"]
+                      [:ersponse "string for answer"]]))
+#+end_src
+
+#+RESULTS:
+: [65514 65516 65514 261 65531 42324 21700 39416 106 65534 42324 21700 45175]
+
+
+
+** train and Inference Steps
+
+*** 1、创建你自己的训练集和测试集
+
+1. 准备训练数据
+2. 格式化训练数据
+3.
+
+
+*** 2、混合你的训练集和训练数据
+***
+
+** Special tokens
+我们使用special token来增强对RWKV模型的控制。
+** Messages/
+**
+
+
+
+* Quick Start
