@@ -15,23 +15,33 @@ In light of the development of large language models, the relationship between h
 dd dsadasdf
 
 * 项目组成
-- app.py # 用于模型启动，建立一个基于bottle的服务，通过api暴露训练和数据加载接口，支持infctx与非infctx两种模式的训练，其中infctx的实现包括挖泥船的(wani-bot)实现与pico的实现。通过config_scripts中的配置文件来进行修改。
+- app.py  用于模型后端启动，建立一个基于bottle的服务，通过api暴露训练和数据加载接口，支持infctx与非infctx两种模式的训练，其中infctx的实现包括挖泥船的(wani-bot)实现与pico的实现。通过config_scripts中的配置文件来进行修改。
+- WebUI.py  模型前端的ui界面，对用户友好、上手方便。目前支持推理和训练。
 - for_client 文件夹下为客户端代码，包括
   - for_emacs  内含emacs插件文件。 
   - for_vscode 内含vscode端插件（开发中）
   - client_code  具体的python脚本， 用于支持插件的调用。
-  - 前端代码： 计划中，目前计划以clojurescript的re-frame框架为基础开发。 
-- prompts： 对Inference中信息的抽象
-- models： 训练实现
-- resouces： 包括词表及相关资源。
-- config.py : 配置文件，用于配置训练代码
+
+  - 前端代码： 目前已发布WebUI版本，目前计划以clojurescript的re-frame框架为基础开发新版本。 
+- rwkv_models： 训练实现
+- models： 训练数据抽象类
+- data： 训练数据抽象类的实体化存储位置，暂时使用jsonl形式。 其中sft.org存储于该目录下，方便编辑器编辑修改。
+
+  
+
 
  
 * 项目启动与支持
-项目启动代码
+项目主体启动代码
 ```bash
 deepspeed --num_nodes=1 --num_gpus=1 app.py --deepspeed
 ```
+
+webui前端启动代码
+```
+streamlit run WebUI.py
+```
+
 在3000端口建立服务
 
 资源需求

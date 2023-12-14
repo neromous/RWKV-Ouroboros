@@ -4,11 +4,12 @@ tokenizer = TRIE_TOKENIZER("./resources/vocab_file/rwkv_vocab_v20230424.txt")
 
 config = {
     "model_name": "default",
-    "proj_dir": "/home/neromous/Documents/ouroboros/RWKV-Ouroboros/",
+    "proj_dir": "/home/xu/liubintao/RWKV-Ouroboros",
     "port": 3000,
     "debug": False,
     "model": {
-        "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
+        "load_model": "/home/xu/liubintao/model/RWKV-5-World-3B-v2-20231118-ctx16k.pth",
+        # "load_model": "/home/xu/Liu Bintao/LM Model/rwkv-v5-7B-0.4-long-ctx-16k.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
         "n_layer": 32,
