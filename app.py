@@ -301,9 +301,9 @@ def infer_state_to_disk():
     req = request.json
     req = dict(request.json)
     s_name = req.get('save_name', "default-states")
-    fpath = f"./resources/states_for_infer/{s_name}.pth"
+    fpath = f"./resources/states_for_inference/{s_name}.pth"
     torch.save(copy.deepcopy(infer_state_map), fpath)
-    return {"message": "save success"}
+    return {"message": "success"}
 
 
 @route('/inference/model/load', method='POST')
