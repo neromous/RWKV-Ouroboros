@@ -48,7 +48,7 @@ if mode:
             with col11:
                 max_loss = st.number_input(label="max_loss", value = config['trainer']["max_loss"], key="max_loss")
                 min_loss = st.number_input(label="min_loss", value= config['trainer']["min_loss"], key="min_loss")
-                ctx_len = st.number_input(label="ctx_len", value=config['model']["ctx_len"],help="将输入的训练data切分成的长度", key="ctx_len")
+                ctx_len = st.number_input(label="ctx_len", value=512,help="将输入的训练data切分成的长度", key="ctx_len")
             with col22:
                 max_loss_fix = st.number_input(label="max_loss_fix", value=config['trainer']["max_loss_fix"], key="max_loss_fix")
                 min_loss_fix = st.number_input(label="min_loss_fix", value=config['trainer']["min_loss_fix"], key="min_loss_fix")
@@ -242,7 +242,7 @@ elif not mode:
             col1, col2 = st.columns(2)
             with col1:
                 temperature = st.number_input(label="temperature", value=0.1, key="temperature", help="温度越高，生成的文本越随机；温度越低，生成的文本越固定；为0则始终输出相同的内容。")
-                token_count = st.number_input(label="token_count", value=256, key="token_count")
+                token_count = st.number_input(label="token_count", value=512, key="token_count",help="模型回答的最大token数，越大回答越长用时越久。")
                 token_ban = st.number_input(label="token_ban", value=None, key="token_ban", help="token_ban:使模型避免输出该token。")
                 token_stop = st.number_input(label="token_stop", value = None, key="token_stop", help="token_stop:使模型停止输出的token。")
             with col2:
@@ -369,6 +369,8 @@ if not mode:
 
     ask_placeholder = st.empty()
     answer_placeholder = st.empty()
+
+    # 高级对话模式
     if advance_dialog:
         df_dialog = pd.DataFrame(
             columns=["role","text","over","token_count","token_stop"]
@@ -458,17 +460,19 @@ if not mode:
                         answer_placeholder.chat_message(msg["role"]).write(msg["response"])
                         st.session_state.messages.append({"role":msg["role"],"content":msg["response"]})
                                   
+    # 普通对话模式
     else:
-        choose_role = choose_role_placeholder.multiselect("选择2个对话角色,注意顺序先问后答", options=role_keys,default=["question","answer"], max_selections=2,key="choose_role")
+        choose_role = choose_role_placeholder.multiselect("选择2个对话角色,注意顺序先问后答", options=role_keys,default=["request","response"], max_selections=2,key="choose_role")
         if prompt := st.chat_input("Ask something"):
+            # question/answer 是原版rwkv的角色，其停止符为261，即\n\n
             token_stop = [261] if "answer" in choose_role else [65535]
-            data_dialog={"messages" : [{"role":"question",
+            data_dialog={"messages" : [{"role":choose_role[0],
                                 "text":f"{prompt}",
                                 "over": True,
                                 "token_count":0,
                                 "token_stop": None,
                                 },
-                                {"role":"answer",
+                                {"role":choose_role[1],
                                 "text":"",
                                 "over": False,
                                 "token_stop": token_stop,
@@ -481,6 +485,7 @@ if not mode:
                                 },
                                 ],
                     "debug" : debug,}
+            # streamlit 的对话角色，与rwkv无关
             roles= ["human","assistant","system"]
             st.session_state.messages.append({"role": roles[0], "content":prompt})
             st.chat_message(roles[0]).write(prompt)
