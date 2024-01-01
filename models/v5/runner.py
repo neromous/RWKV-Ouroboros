@@ -324,3 +324,56 @@ class RWKV_RNN(MyModule):
         message.generated = True
         message.response = out_str
         return message, state
+
+# 流式输出
+    def flow_generate(self,
+                 tokenizer,
+                 message,
+                 inference_config,
+                 callback=print,
+                 state=None):
+
+        tokens, masks = message.tokens()
+        token_count = inference_config['token_count']
+        token_ban = inference_config['token_ban']
+        token_stop = inference_config['token_stop']
+        temperature =  inference_config['temperature']
+        top_p = inference_config['top_p']
+        alpha_presence = inference_config['alpha_presence']
+        alpha_frequency = inference_config['alpha_frequency']
+        alpha_decay = inference_config['alpha_decay']
+        out_str = ""
+        occurrence = {}
+        all_tokens = []
+        out_last = 0
+        while len(tokens) > 0:
+            do_infer = tokens[:512]
+            tokens = tokens[512:]
+            logits, state = self.forward(do_infer, state)
+        for i in range(0,token_count):
+            for n in token_ban:
+                logits[n] = -float('inf')
+            for n in occurrence:
+                logits[n] -= (alpha_presence + occurrence[n] * alpha_frequency)
+
+            token = sample_logits(logits,
+                                  temperature=temperature,
+                                  top_p=top_p)
+            if token in token_stop:
+                break
+            all_tokens += [token]
+            for xxx in occurrence:
+                occurrence[xxx] *= alpha_decay
+            if token not in occurrence:
+                occurrence[token] = 1
+            else:
+                occurrence[token] += 1
+            text = tokenizer.decode(all_tokens[out_last:])
+            logits, state = self.forward([token], state)
+            if '\ufffd' not in text: # only print when we have a valid utf-8 string
+                print(text, end="", flush=True)
+                if text:
+                    # 流式输出
+                    yield text
+                out_last = i + 1
+        return state
