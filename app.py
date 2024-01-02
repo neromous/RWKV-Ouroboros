@@ -146,7 +146,7 @@ def train_by_tx_data():
         tokens += token
         masks += mask
 
-    tokens = tokens + [0]
+    tokens = tokens
     masks = masks
     # 此处的tokens是一个list，masks是一个list，里面是1或0
     if len(tokens) == 0:
@@ -168,7 +168,7 @@ def train_by_tx_data():
         # training_step += 1
         i += 1
         output = tokens[:ctx_len + 1]
-        output_masks = masks[:ctx_len]
+        output_masks = masks[:len(output) - 1]
         # add the token to keep the state have  last one token
         tokens = tokens[ctx_len - window:]
         masks = masks[ctx_len - window:]
@@ -230,14 +230,14 @@ def train_by_tokens():
             masks = [fix_logit for x in tokens]
         else:
             masks = [x * fix_logit for x in attention_mask]
-        tokens = tokens + [0]
+        tokens = tokens
         while len(tokens) > 0:
             i += 1
             step += 1
             # 修正最后一个token不进入state的问题。
             output = tokens[:ctx_len + 1]
             tokens = tokens[ctx_len - window:]
-            output_masks = masks[:ctx_len]
+            output_masks = masks[:len(output) -1]
             masks = masks[ctx_len - window:]
             # 组装结果
             batch = {'input_ids': output,

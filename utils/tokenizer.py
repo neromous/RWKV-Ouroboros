@@ -115,7 +115,7 @@ class TRIE_TOKENIZER():
                         res += self.sp_map[mk]
                         cache = ""
                         break
-                    res += self.encode_raw(cache)
+            res += self.encode_raw(cache)
             return res
         else:
             return self.encode_raw(text)

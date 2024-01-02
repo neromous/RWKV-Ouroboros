@@ -10,7 +10,7 @@ config = {
     "port": 3000,
     "debug": False,
     "model": {
-        "load_model": "/mnt/develop/rwkv_models/default-save-09-base.pth",
+        "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
         # "load_model": "/home/xu/Liu Bintao/LM Model/rwkv-v5-7B-0.4-long-ctx-16k.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
@@ -86,11 +86,11 @@ config = {
     "role": {
         "system": {
             "prefix": [65531],
-            "postfix": []
+            "postfix": [65535]
         },
         "request": {
             "prefix":  [65532],
-            "postfix": []
+            "postfix": [65535]
         },
 
         "think": {
@@ -107,7 +107,7 @@ config = {
         },
         "text": {
             "prefix": [],
-            "postfix": [261]
+            "postfix": []
         },
         "raw-text": {
             "prefix": [],
@@ -173,3 +173,5 @@ config['trainer']['tokenizer'] = tokenizer_for_train
 print(f"===train===={config['trainer']['tokenizer'].decode([65528])}==")
 config['inference']['tokenizer'] = tokenizer_for_inference
 print(f"===inference===={config['inference']['tokenizer'].decode([65528])}==")
+
+print(tokenizer_for_inference.encode("<|system|><|dfadsfa|>dfasdfds<|page-over|><|system|>dfasdfads<|over|><dfad><|request|>\n") )
