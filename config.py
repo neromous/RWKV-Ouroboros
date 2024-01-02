@@ -6,17 +6,16 @@ tokenizer = TRIE_TOKENIZER("./resources/vocab_file/rwkv_vocab_v20230424.txt")
 ## data
 config = {
     "model_name": "default",
-    "proj_dir": "/home/xu/liubintao/RWKV-Ouroboros",
+    "proj_dir": "/home/neromous/RWKV-Ouroboros",
     "port": 3000,
     "debug": False,
     "model": {
         "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
-        # "load_model": "/home/xu/Liu Bintao/LM Model/rwkv-v5-7B-0.4-long-ctx-16k.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
-        "ctx_len": 4096,
+        "ctx_len": 16386,
         "dtype": "bf16",
         "head_size": 64,
         "head_size_a": 64,

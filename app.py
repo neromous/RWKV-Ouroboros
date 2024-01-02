@@ -146,8 +146,8 @@ def train_by_tx_data():
         tokens += token
         masks += mask
 
-    tokens = tokens
-    masks = masks
+    tokens = tokens + [0]
+    masks[-1] = 0
     # 此处的tokens是一个list，masks是一个list，里面是1或0
     if len(tokens) == 0:
         return {"response": "no tokens"}
@@ -164,7 +164,7 @@ def train_by_tx_data():
         print("-tokens->", tokens)
     # 每次循环截取tokens的0-ctx_len部分,window为滑动窗口的重叠长度
     # 每个被截取的部分都是一个batch、单独进行前向传播和反向传播
-    while len(tokens) > 0:
+    while len(tokens) > 1:
         # training_step += 1
         i += 1
         output = tokens[:ctx_len + 1]
@@ -231,8 +231,9 @@ def train_by_tokens():
             masks = [fix_logit for x in tokens]
         else:
             masks = [x * fix_logit for x in attention_mask]
-        tokens = tokens
-        while len(tokens) > 0:
+        tokens = tokens + [0]
+        masks[-1] = 0
+        while len(tokens) > 1:
             i += 1
             step += 1
             # 修正最后一个token不进入state的问题。
