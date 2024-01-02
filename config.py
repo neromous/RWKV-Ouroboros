@@ -174,4 +174,9 @@ print(f"===train===={config['trainer']['tokenizer'].decode([65528])}==")
 config['inference']['tokenizer'] = tokenizer_for_inference
 print(f"===inference===={config['inference']['tokenizer'].decode([65528])}==")
 
-print(tokenizer_for_inference.encode("<|system|><|dfadsfa|>dfasdfds<|page-over|><|system|>dfasdfads<|over|><dfad><|request|>\n") )
+
+test_string ="<|system|><|dfadsfa|>dfasdfds<|page-over|><|system|>dfasdfads<|over|><dfad><|request|>\n"
+test_token = tokenizer.encode(test_string)
+
+print("==token==",tokenizer_for_inference.encode(test_string) )
+print("---string----",tokenizer_for_inference.decode(test_token))

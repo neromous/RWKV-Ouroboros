@@ -282,9 +282,12 @@ class RWKV_RNN(MyModule):
                  neg_state=None,
                  pos_gama=0.4,
                  neg_gama=0.4):
-        print("=====0======")
 
         tokens, masks = message.tokens()
+        if False:
+            print("===1==", tokens)
+            print("===2==", message.text)
+            print("===3==", message.tokenizer().decode(tokens))
         pos, neg = message.cfg_tokens()
         token_count = inference_config['token_count']
         token_ban = inference_config['token_ban']
@@ -298,30 +301,32 @@ class RWKV_RNN(MyModule):
         occurrence = {}
         all_tokens = []
         out_last = 0
-        token = 0  # preset
-        while len(tokens) > 0:
-            do_infer = tokens[:512]
-            tokens = tokens[512:]
-            logits, state = self.forward(do_infer, state)
-
-        if pos is not False:
-            while len(pos) > 0:
-                do_infer = pos[:512]
-                pos = pos[512:]
-                pos_logits, pos_state = self.forward(do_infer, pos_state)
-
-        if neg is not False:
-            while len(neg) > 0:
-                do_infer = neg[:512]
-                neg = neg[512:]
-                neg_logits, neg_state = self.forward(do_infer, neg_state)
         for i in range(0,token_count):
-            logits, state = self.forward([token], state)
-            if pos is not False:
-                pos_logits, pos_state = self.forward([token], pos_state)
+            if i == 0:
+                while len(tokens) > 0:
+                    do_infer = tokens[:512]
+                    tokens = tokens[512:]
+                    logits, state = self.forward(do_infer, state)
+                if pos is not False:
+                    while len(pos) > 0:
+                        do_infer = pos[:512]
+                        pos = pos[512:]
+                        pos_logits, pos_state = self.forward(do_infer, pos_state)
+                if neg is not False:
+                    while len(neg) > 0:
+                        do_infer = neg[:512]
+                        neg = neg[512:]
+                        neg_logits, neg_state = self.forward(do_infer, neg_state)
+            else:
+                logits, state = self.forward([token], state)
+                if pos is not False:
+                    pos_logits, pos_state = self.forward([token], pos_state)
+                if neg is not False:
+                    neg_logits, neg_state = self.forward([token], neg_state)
+
+            if pos:
                 logits = pos_logits * pos_gama + logits * (1 - pos_gama)
-            if neg is not False:
-                neg_logits, neg_state = self.forward([token], neg_state)
+            if neg:
                 logits = neg_logits * neg_gama + logits * (1 - neg_gama)
 
             for n in token_ban:
