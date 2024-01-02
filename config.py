@@ -99,11 +99,11 @@ config = {
         },
         "observe": {
             "prefix": [65533],
-            "postfix": [],
+            "postfix": [65535],
         },
         "response": {
             "prefix": [65534],
-            "postfix": []
+            "postfix": [65535]
         },
         "text": {
             "prefix": [],
@@ -152,6 +152,7 @@ config = {
             "prefix": tokenizer.encode('## Output:\n'),
             "postfix": [261]
         }},
+    # 自定义词表
     "vocab": {
         "<|system|>": [65531],
         "<|request|>": [65532],
