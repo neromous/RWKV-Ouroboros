@@ -135,12 +135,12 @@ that idea I borrow from the re-frame framework to enforce the rwkv inference and
 
 
 *** 2、混合你的训练集和训练数据
-***
+**
 
 ** Special tokens
 我们使用special token来增强对RWKV模型的控制。
 ** Messages/
-**
+
 
 
 

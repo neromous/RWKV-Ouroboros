@@ -274,13 +274,16 @@ class RWKV_RNN(MyModule):
             return x.float(), state
 
     def generate(self,
-                 tokenizer,
                  message,
                  inference_config,
                  callback=print,
-                 state=None):
-
+                 state=None,
+                 pos_state=None,
+                 neg_state=None,
+                 pos_gama=0.4,
+                 neg_gama=0.4):
         tokens, masks = message.tokens()
+        pos, neg = message.cfg_tokens()
         token_count = inference_config['token_count']
         token_ban = inference_config['token_ban']
         token_stop = inference_config['token_stop']
@@ -293,11 +296,35 @@ class RWKV_RNN(MyModule):
         occurrence = {}
         all_tokens = []
         out_last = 0
-        while len(tokens) > 0:
-            do_infer = tokens[:512]
-            tokens = tokens[512:]
-            logits, state = self.forward(do_infer, state)
+        token = 0  # preset
         for i in range(0,token_count):
+            if i == 0:
+                while len(tokens) > 0:
+                    do_infer = tokens[:512]
+                    tokens = tokens[512:]
+                    logits, state = self.forward(do_infer, state)
+                if pos is not False:
+                    while len(pos) > 0:
+                        do_infer = pos[:512]
+                        pos = pos[512:]
+                        pos_logits, pos_state = self.forward(do_infer, pos_state)
+                if neg is not False:
+                    while len(neg) > 0:
+                        do_infer = neg[:512]
+                        neg = neg[512:]
+                        neg_logits, neg_state = self.forward(do_infer, neg_state)
+            else:
+                logits, state = self.forward([token], state)
+                if pos is not False:
+                    pos_logits, pos_state = self.forward([token], pos_state)
+                if neg is not False:
+                    neg_logits, neg_state = self.forward([token], neg_state)
+
+            if pos:
+                logits = pos_logits * pos_gama + logits * (1 - pos_gama)
+            if neg:
+                logits = neg_logits * neg_gama + logits * (1 - neg_gama)
+
             for n in token_ban:
                 logits[n] = -float('inf')
             for n in occurrence:
@@ -315,12 +342,12 @@ class RWKV_RNN(MyModule):
                 occurrence[token] = 1
             else:
                 occurrence[token] += 1
-            text = tokenizer.decode(all_tokens[out_last:])
+            text = message.tokenizer().decode(all_tokens[out_last:])
             if '\ufffd' not in text: # only print when we have a valid utf-8 string
                 print(text, end="", flush=True)
                 out_str += text
                 out_last = i + 1
-            logits, state = self.forward([token], state)
+
         message.generated = True
         message.response = out_str
-        return message, state
+        return message, state, pos_state, neg_state

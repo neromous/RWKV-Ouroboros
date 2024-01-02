@@ -1,25 +1,27 @@
 from utils.tokenizer import TRIE_TOKENIZER
 
+## to config
 tokenizer = TRIE_TOKENIZER("./resources/vocab_file/rwkv_vocab_v20230424.txt")
 
+## data
 config = {
     "model_name": "default",
     "proj_dir": "/home/xu/liubintao/RWKV-Ouroboros",
     "port": 3000,
     "debug": False,
     "model": {
-        "load_model": "/home/xu/liubintao/model/RWKV-5-World-3B-v2-20231118-ctx16k.pth",
+        "load_model": "/mnt/develop/rwkv_models/default-save-09-base.pth",
         # "load_model": "/home/xu/Liu Bintao/LM Model/rwkv-v5-7B-0.4-long-ctx-16k.pth",
         "rwkv_version": "v5",
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
         "ctx_len": 4096,
-        "dtype": "fp32",
+        "dtype": "bf16",
         "head_size": 64,
         "head_size_a": 64,
         "head_size_divisor": 8,
-        "ds_config": './ds_config/fp32_config.config',
+        "ds_config": './ds_config/ds_config.config',
     },
     "lora_config": {
         "lora": False,
@@ -83,16 +85,16 @@ config = {
     },
     "role": {
         "system": {
-            "prefix": [65530],
+            "prefix": [65531],
             "postfix": []
         },
         "request": {
-            "prefix":  [65531],
+            "prefix":  [65532],
             "postfix": []
         },
 
         "think": {
-            "prefix": [65532],
+            "prefix": [65533],
             "postfix": []
         },
         "observe": {
@@ -151,36 +153,23 @@ config = {
             "postfix": [261]
         }},
     "vocab": {
-        "<|system|>": [65530],
-        "<|request|>": [65531],
-        "<|think|>":  [65532],
-        "<|observe|>":  [65533],
+        "<|system|>": [65531],
+        "<|request|>": [65532],
         "<|response|>": [65534],
         "<|over|>": [65535],
-        "<|page|>": [65514, 65516, 65514, 261],
-    }
+        "<|page|>": [11,65530,11],
+        "<|page-description|>": [11,65533,11],
+        "<|paragraph|>":  [11,65533,11],
+        "<|page-over|>": [11,65535,11],
 
-}
-
-
-def prefix_tokenizer(text,tokenizer, sp_map:dict=config["vocab"]):
-    res = []
-    cache = ""
-    for x in text:
-        cache += x
-        for mk in sp_map.keys():
-            if cache.endswith(mk):
-                res += tokenizer.encode(cache.rstrip(mk))
-                res += sp_map[mk]
-                cache = ""
-                break
-    res += tokenizer.encode(cache)
-    return res
+    }}
 
 
-config['trainer']['tokenizer'] = TRIE_TOKENIZER(config['trainer']['tokenizer'])
+tokenizer_for_train = TRIE_TOKENIZER(config['trainer']['tokenizer'], sp_map=config['vocab'])
+tokenizer_for_inference = TRIE_TOKENIZER(config['inference']['tokenizer'],  sp_map=config['vocab'])
+
+
+config['trainer']['tokenizer'] = tokenizer_for_train
 print(f"===train===={config['trainer']['tokenizer'].decode([65528])}==")
-config['inference']['tokenizer'] = TRIE_TOKENIZER(config['inference']['tokenizer'])
+config['inference']['tokenizer'] = tokenizer_for_inference
 print(f"===inference===={config['inference']['tokenizer'].decode([65528])}==")
-
-print(prefix_tokenizer("<|system|><|dfadsfa|>dfasdfds<|system|>dfasdfads<|over|><dfad><|request|>\n", config['inference']['tokenizer']))

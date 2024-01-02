@@ -358,7 +358,7 @@ class RWKV(nn.Module):
         H =  args.dim_att // args.head_size_a
 
         assert T <= self.args.ctx_len, "Cannot forward, model ctx_len is exhausted."
-        assert C== H * args.head_size_a
+        assert C == H * args.head_size_a
 
         x = self.emb(idx)
         new_states = BlockStateList.empty(args.n_layer,
