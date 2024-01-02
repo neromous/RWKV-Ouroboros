@@ -1,10 +1,9 @@
-from utils.tokenizer import TRIE_TOKENIZER
 from prompts.messages import Message
 import types
 import gc
 import copy
 import torch
-from bottle import route, run, request
+from bottle import route, run, request, response
 import deepspeed
 from config import config
 
@@ -143,6 +142,10 @@ def train_by_tx_data():
     ctx_len = req.get('ctx_len', args.ctx_len)
     window = req.get('window', args.window)
     messages = req.get('messages', [])
+    # messages中的每个message都对应一个角色的发言和参数，是dict
+    # Message.new()指对mesages中的每个message进行处理，返回一个Message类对象，属性是message中的参数
+    # messages是[([tokens1],[masks1]),([tokens2],[masks2])，([tokens3],[masks3])]
+    # tokens1是一个list，里面是token的id，masks1是一个list，里面是1或0
     messages = [Message.new(x) for x in messages]
     messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
@@ -150,6 +153,7 @@ def train_by_tx_data():
     for token, mask in messages:
         tokens += token
         masks += mask
+    # 此处的tokens是一个list，masks是一个list，里面是1或0
     if len(tokens) == 0:
         return {"response": "no tokens"}
     losses = []
@@ -165,6 +169,8 @@ def train_by_tx_data():
     if debug:
         print("-train-state-before>", states)
         print("-tokens->", tokens)
+    # 每次循环截取tokens的0-ctx_len部分,window为滑动窗口的重叠长度
+    # 每个被截取的部分都是一个batch、单独进行前向传播和反向传播
     while len(tokens) > 0:
         # training_step += 1
         i += 1
@@ -174,8 +180,10 @@ def train_by_tx_data():
         masks = masks[ctx_len - window:]
         batch = {'input_ids': output,
                  'masks': output_masks}
+        # deepspeed的model_engine是一个函数，输入batch和states，前向传播，返回loss和states
         m, states = model_engine(batch, states=states)
         loss = m.item()
+        # 修正loss，loss过大则夸大，过小则更小
         if loss < min_loss:
             m = m * min_loss_fix
         elif loss > max_loss:
@@ -352,6 +360,55 @@ def infer_by_tx_data():
     if debug:
         print("--after--->", state)
     return {'messages': result}
+
+@route('/inference/flow-tx', method='POST')
+def infer_by_tx_data():
+    global rnn_model, debug, infer_state
+    req = request.json
+    if rnn_model is None:
+        print(f"===load model===")
+        infer_model_load()
+    messages = req['messages']
+    result = []
+    state = None
+    if infer_state is not None:
+        state = copy.deepcopy(infer_state)
+    debug = req.get('debug',debug)
+    
+    def generate_messages(state=state):
+        global infer_state
+        if debug:
+            print("--before--->", state)
+        for message in messages:
+            infer_config = {"temperature": message.get("temperature", 0.1),
+                            "top_p": message.get('top_p', 0.85),
+                            "token_count": message.get('token_count', 256),
+                            "token_stop": message.get('token_stop', []),
+                            "alpha_presence": message.get('alpha_presence', 0.2),
+                            "alpha_decay": message.get('alpha_decay', 0.996),
+                            "alpha_frequency": message.get('alpha_frequency', 0.2),
+                            "token_ban": message.get('token_ban', [])
+                            }
+            generator = rnn_model.flow_generate(tokenizer,
+                                            Message.new(message),
+                                            infer_config,
+                                            state=state)
+            try:
+                while True:
+                    out_str = next(generator)
+                    yield out_str # 动态输出结果
+            except StopIteration as error:
+                state = error.value  # 获取并更新 state
+            except Exception as error:
+                print(f"在处理消息时generate_messages()发生错误: {error}")
+                break
+        infer_state = copy.deepcopy(state)
+        if debug:
+            print("--after--->", state)
+
+    response.content_type = 'text/plain'  # 设置响应的Content-Type
+    return generate_messages()  # 返回生成器函数
+
 
 
 @route('/inference/by/messages', method='POST')

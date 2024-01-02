@@ -84,24 +84,24 @@ config = {
     "role": {
         "system": {
             "prefix": [65530],
-            "postfix": []
+            "postfix": [65535]
         },
         "request": {
             "prefix":  [65531],
-            "postfix": []
+            "postfix": [65535]
         },
 
         "think": {
             "prefix": [65532],
-            "postfix": []
+            "postfix": [65535]
         },
         "observe": {
             "prefix": [65533],
-            "postfix": [],
+            "postfix": [65535],
         },
         "response": {
             "prefix": [65534],
-            "postfix": []
+            "postfix": [65535]
         },
         "text": {
             "prefix": [],
@@ -150,6 +150,7 @@ config = {
             "prefix": tokenizer.encode('## Output:\n'),
             "postfix": [261]
         }},
+    # 自定义词表
     "vocab": {
         "<|system|>": [65530],
         "<|request|>": [65531],
