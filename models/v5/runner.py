@@ -299,19 +299,17 @@ class RWKV_RNN(MyModule):
         all_tokens = []
         out_last = 0
         token = 0  # preset
-        print("=====1======")
-
         while len(tokens) > 0:
             do_infer = tokens[:512]
             tokens = tokens[512:]
             logits, state = self.forward(do_infer, state)
-        print("=====2======")
+
         if pos is not False:
             while len(pos) > 0:
                 do_infer = pos[:512]
                 pos = pos[512:]
                 pos_logits, pos_state = self.forward(do_infer, pos_state)
-        print("=====3======")
+
         if neg is not False:
             while len(neg) > 0:
                 do_infer = neg[:512]

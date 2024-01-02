@@ -218,6 +218,7 @@ def train_by_tokens():
     total = 0
     mean_loss = 0
     i = 0
+    step = 0
     if train_state is not None:
         states = copy.deepcopy(train_state)
     else:
