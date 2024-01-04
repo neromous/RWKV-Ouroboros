@@ -325,51 +325,41 @@ class RWKV(nn.Module):
     # def forward(self, idx: torch.Tensor, last_shift_states: torch.Tensor,
     #             last_wkv_states: torch.Tensor):
 
-    def forward(self, batch:dict, states:BlockStateList=None):
+    def forward(self, batch: dict, states: BlockStateList = None):
         args = self.args
         # pre calc
-        #
-        seq = batch['input_ids']
-        mask = batch.get('attention_mask',None)
+        seq = batch["input_ids"]
+        mask = batch.get("attention_mask", None)
 
         # data process
         idx = seq[:-1]
         targets = seq[1:]
         if mask == None:
-            mask = [int(x!=0) for x in idx]
-        else:
-            mask = mask[:len(idx)]
+            mask = [int(x != 0) for x in idx]
+
         # data into tensor
-        idx = torch.tensor([idx],dtype=torch.long).cuda()
-        targets = torch.tensor([targets],dtype=torch.long).cuda()
+        idx = torch.tensor([idx], dtype=torch.long).to(next(self.parameters()).device)
+        targets = torch.tensor([targets], dtype=torch.long).to(next(self.parameters()).device)
 
         # process mask
-        mask = torch.tensor([mask],dtype=torch.float32).to('cuda')
+        mask = torch.tensor([mask], dtype=torch.float32).to(next(self.parameters()).device)
         mask = mask.view(-1)
         sum_mask = torch.sum(mask).item()
-
-        # idx, targets, *others = batch
-        B, T = idx.shape
-        C = args.n_embd
 
         # 计算logits
         args = self.args
 
         B, T = idx.size()
         C = args.n_embd
-        H =  args.dim_att // args.head_size_a
+        H = args.dim_att // args.head_size_a
 
         assert T <= self.args.ctx_len, "Cannot forward, model ctx_len is exhausted."
         assert C == H * args.head_size_a
 
         x = self.emb(idx)
-        new_states = BlockStateList.empty(args.n_layer,
-                                          B,
-                                          args.n_embd,
-                                          args.n_head,
-                                          args.head_size,
-                                          x.device,
-                                          x.dtype)
+        new_states = BlockStateList.empty(
+            args.n_layer, B, args.n_embd, args.n_head, args.head_size, x.device, x.dtype
+        )
 
         if states is None:
             cur_bs_list = BlockStateList.create(
@@ -379,7 +369,73 @@ class RWKV(nn.Module):
                 args.n_head,
                 args.head_size,
                 x.device,
-                x.dtype)
+                x.dtype,
+            )
+        else:
+            cur_bs_list = BlockStateList(states.shift_states, states.wkv_states)
+
+        for i in range(len(self.blocks)):
+            block = self.blocks[i]
+            last_state = cur_bs_list[i]
+            if self.args.grad_cp:
+                x, new_state = deepspeed_checkpoint(block, x, last_state)
+            else:
+                x, new_state = block(x, last_state)
+            new_states[i] = new_state
+
+        x = self.ln_out(x)
+
+        logits = self.head(x)
+        # logits 计算完毕
+        # states = BlockStateList(new_shift_states, new_wkv_states)
+
+        if sum_mask == mask.shape[0]:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            # print('rank', self.global_rank, 'loss', loss.item())
+        else:
+            loss = F.cross_entropy(
+                logits.view(-1, logits.size(-1)), targets.view(-1), reduction="none"
+            )
+            # loss_raw = loss
+            loss = torch.sum(loss * mask)
+            if sum_mask > 0:
+                loss = loss / sum_mask
+        return L2Wrap.apply(loss, logits, torch.sum(mask), mask), new_states
+
+    def forward_no_supervise(
+        self,
+        idx,
+        states: BlockStateList = None,
+    ):
+        print(next(self.parameters()).device)
+
+        idx = torch.tensor([idx], dtype=torch.long).to(next(self.parameters()).device)
+
+        # 计算logits
+        args = self.args
+
+        B, T = idx.size()
+        C = args.n_embd
+        H = args.dim_att // args.head_size_a
+
+        assert T <= self.args.ctx_len, "Cannot forward, model ctx_len is exhausted."
+        assert C == H * args.head_size_a
+
+        x = self.emb(idx)
+        new_states = BlockStateList.empty(
+            args.n_layer, B, args.n_embd, args.n_head, args.head_size, x.device, x.dtype
+        )
+
+        if states is None:
+            cur_bs_list = BlockStateList.create(
+                args.n_layer,
+                B,
+                args.n_embd,
+                args.n_head,
+                args.head_size,
+                x.device,
+                x.dtype,
+            )
         else:
             cur_bs_list = BlockStateList(states.shift_states, states.wkv_states)
 
@@ -396,16 +452,5 @@ class RWKV(nn.Module):
 
         logits = self.head(x)
 
-        #logits 计算完毕
-        # states = BlockStateList(new_shift_states, new_wkv_states)
+        return logits, new_states
 
-        if sum_mask == mask.shape[0]:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
-            # print('rank', self.global_rank, 'loss', loss.item())
-        else:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction='none')
-            # loss_raw = loss
-            loss = torch.sum(loss * mask)
-            if sum_mask > 0:
-                loss = loss/sum_mask
-        return L2Wrap.apply(loss, logits, torch.sum(mask), mask), new_states
