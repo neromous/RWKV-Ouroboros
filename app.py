@@ -141,6 +141,8 @@ def train_by_tx_data():
     messages = [Message.new(x) for x in messages]
     messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
+    if len(tokens) == 0:
+        return {"loss": 0.0}
     masks = []
     for token, mask in messages:
         tokens += token
@@ -173,7 +175,6 @@ def train_by_tx_data():
         tokens = tokens[ctx_len - window:]
         masks = masks[ctx_len - window:]
         batch = {'input_ids': output,
-
                  'attention_mask': output_masks}
         # deepspeed的model_engine是一个函数，输入batch和states，前向传播，返回loss和states
         m, states = model_engine(batch, states=states)
