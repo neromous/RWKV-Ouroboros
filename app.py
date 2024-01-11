@@ -355,13 +355,13 @@ def infer_by_tx_data():
     if debug:
         print("--before--->", state)
     for message in messages:
-        infer_config = {"temperature": message.get("temperature", 0.1),
-                        "top_p": message.get('top_p', 0.85),
+        infer_config = {"temperature": message.get("temperature", 0.2),
+                        "top_p": message.get('top_p', 0.2),
                         "token_count": message.get('token_count', 256),
                         "token_stop": message.get('token_stop', []),
-                        "alpha_presence": message.get('alpha_presence', 0.2),
-                        "alpha_decay": message.get('alpha_decay', 1),
-                        "alpha_frequency": message.get('alpha_frequency', 0.2),
+                        "alpha_presence": message.get('alpha_presence', 0.45),
+                        "alpha_decay": message.get('alpha_decay', 0.996),
+                        "alpha_frequency": message.get('alpha_frequency', 0.45),
                         "token_ban": message.get('token_ban', [])}
         msg, state, pos_state, neg_state = rnn_model.generate(Message.new(message),
                                                               infer_config,
@@ -397,13 +397,13 @@ def infer_by_tx_data():
         if debug:
             print("--before--->", state)
         for message in messages:
-            infer_config = {"temperature": message.get("temperature", 0.1),
-                            "top_p": message.get('top_p', 0.85),
+            infer_config = {"temperature": message.get("temperature", 0.2),
+                            "top_p": message.get('top_p', 0.2),
                             "token_count": message.get('token_count', 256),
                             "token_stop": message.get('token_stop', []),
-                            "alpha_presence": message.get('alpha_presence', 0.2),
+                            "alpha_presence": message.get('alpha_presence', 0.45),
                             "alpha_decay": message.get('alpha_decay', 0.996),
-                            "alpha_frequency": message.get('alpha_frequency', 0.2),
+                            "alpha_frequency": message.get('alpha_frequency', 0.45),
                             "token_ban": message.get('token_ban', [])
                             }
             generator = rnn_model.flow_generate(tokenizer,
@@ -447,13 +447,13 @@ def infer_by_messages():
     if debug:
         print("--before--->", state)
     for message in messages:
-        infer_config = {"temperature": message.get("temperature", 0.1),
-                        "top_p": message.get('top_p', 0.85),
+        infer_config = {"temperature": message.get("temperature", 0.2),
+                        "top_p": message.get('top_p', 0.2),
                         "token_count": message.get('token_count', 256),
                         "token_stop": message.get('token_stop', []),
-                        "alpha_presence": message.get('alpha_presence', 0.2),
-                        "alpha_decay": message.get('alpha_decay', 1),
-                        "alpha_frequency": message.get('alpha_frequency', 0.2),
+                        "alpha_presence": message.get('alpha_presence', 0.45),
+                        "alpha_decay": message.get('alpha_decay', 0.996),
+                        "alpha_frequency": message.get('alpha_frequency', 0.45),
                         "token_ban": message.get('token_ban', [])}
         msg, state, pos_state, neg_state = rnn_model.generate(Message.new(message),
                                                               infer_config,
@@ -506,4 +506,4 @@ def infer_by_tokens():
 # ================
 
 if True:
-    run(host='0.0.0.0', port=3000)
+    run(host='0.0.0.0', port=config['port'])

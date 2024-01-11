@@ -83,9 +83,9 @@ class Message:
         if self.cfg_pos != "":
             pos = self.tokenizer().encode(self.cfg_pos)
         else:
-            pos = False
+            pos = []
         if self.cfg_neg != "":
             neg = self.tokenizer().encode(self.cfg_neg)
         else:
-            neg = False
+            neg = []
         return pos, neg
