@@ -14,15 +14,15 @@ import time
 import types
 import deepspeed
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
-
-
+import copy
 
 from .module.CoreDependencies import *
 from .module.ChannelMix import RWKV_ChannelMix
 from .module.TimeMix import RWKV_TimeMix
 
 
-os.environ['RWKV_MY_TESTING'] = config['environ']['RWKV_MY_TESTING']
+os.environ["RWKV_MY_TESTING"] = config["environ"]["RWKV_MY_TESTING"]
+
 
 def __nop(ob):
     return ob
@@ -30,6 +30,7 @@ def __nop(ob):
 
 MyModule = nn.Module
 MyFunction = __nop
+
 
 def deepspeed_checkpoint(*args, **kwargs):
     return deepspeed.checkpointing.checkpoint(*args, **kwargs)
@@ -41,16 +42,18 @@ local_path = os.path.dirname(__file__)
 # RWKV: State Blocks
 ### ---
 
-class BlockState:
 
-    def __init__(self, time_mix_state: tuple[torch.Tensor,torch.Tensor],
-                 channel_mix_state: torch.Tensor):
+class BlockState:
+    def __init__(
+        self,
+        time_mix_state: tuple[torch.Tensor, torch.Tensor],
+        channel_mix_state: torch.Tensor,
+    ):
         self.time_mix_state = time_mix_state
         self.channel_mix_state = channel_mix_state
 
 
 class BlockStateList:
-
     def __init__(self, shift_states, wkv_states):
         self.wkv_states = wkv_states
         self.shift_states = shift_states
@@ -68,31 +71,37 @@ class BlockStateList:
     @staticmethod
     def empty(N, B, C, n_head, head_size, device, dtype):
         # @TODO: confirm if dtype can be changed from .flaot to dtype=dtype (when bf16)
-        wkv_states = torch.empty((N, B, n_head, head_size, head_size),
-        # wkv_states = torch.empty((N, B, 1, n_head, head_size, head_size),
-                                 device=device,
-                                #  dtype=dtype)
-                                 dtype=torch.float)
+        wkv_states = torch.empty(
+            (N, B, n_head, head_size, head_size),
+            # wkv_states = torch.empty((N, B, 1, n_head, head_size, head_size),
+            device=device,
+            #  dtype=dtype)
+            dtype=torch.float,
+        )
         shift_states = torch.empty((N, 2, B, C), device=device, dtype=dtype)
         return BlockStateList(shift_states, wkv_states)
 
     def __getitem__(self, layer: int):
         return BlockState(
             (self.shift_states[layer, 0], self.wkv_states[layer]),
-            (self.shift_states[layer, 1]))
+            (self.shift_states[layer, 1]),
+        )
 
     def __setitem__(self, layer: int, state: BlockState):
         self.shift_states[layer, 0] = state.time_mix_state[0]
         self.wkv_states[layer] = state.time_mix_state[1]
         self.shift_states[layer, 1] = state.channel_mix_state
 
+
 ### ---
 # The RWKV Model blocks
 ### ---
 
-class Block(nn.Module):
 
-    def __init__(self, layer_id, n_layer, n_embd, n_head, head_size, dropout, dim_att, dim_ffn):
+class Block(nn.Module):
+    def __init__(
+        self, layer_id, n_layer, n_embd, n_head, head_size, dropout, dim_att, dim_ffn
+    ):
         super().__init__()
         self.layer_id = layer_id
 
@@ -108,8 +117,8 @@ class Block(nn.Module):
         # Setup droupout at block level
         self.dropout = dropout
         if dropout > 0:
-            self.drop0 = nn.Dropout(p = dropout)
-            self.drop1 = nn.Dropout(p = dropout)
+            self.drop0 = nn.Dropout(p=dropout)
+            self.drop1 = nn.Dropout(p=dropout)
 
     def forward(self, x, last_state: BlockState):
         if self.layer_id == 0:
@@ -141,7 +150,6 @@ class Block(nn.Module):
 
 
 class L2Wrap(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, loss, y, token_amount, currentMask):
         # Currently (8th July 2023), save_for_backward, causes an issue with
@@ -166,70 +174,83 @@ class L2Wrap(torch.autograd.Function):
         gy.scatter_(-1, ids, maxx * factor)
 
         # We ensure the mask is reshaped accordingly, and apply it against gy
-        gy = gy * currentMask.reshape(gy.shape[0],gy.shape[1],1) # currentMask[:, None][None, :]
+        gy = gy * currentMask.reshape(
+            gy.shape[0], gy.shape[1], 1
+        )  # currentMask[:, None][None, :]
         return (grad_output, gy, None, None)
+
 
 ########################################################################################################
 
 
 class RWKV(nn.Module):
-    def __init__(self,args):
+    def __init__(self, args):
         super().__init__()
 
         self.args = args
         if self.args.dtype == "fp32":
-            self.args.dtype=torch.float
+            self.args.dtype = torch.float
         elif self.args.dtype == "fp16":
-            self.args.dtype=torch.half
-        elif self.args.dtype== "bf16":
+            self.args.dtype = torch.half
+        elif self.args.dtype == "bf16":
             self.args.dtype = torch.bfloat16
 
-        model_weights = torch.load(self.args.load_model, map_location='cpu')
+        model_weights = torch.load(self.args.load_model, map_location="cpu")
         model_keys = list(model_weights.keys())
 
         if self.args.n_layer < 0:
             max_block_id = 0
             for x in model_keys:
-                if 'blocks.' in x:
-                    block_id = int(x.split('.')[1])
+                if "blocks." in x:
+                    block_id = int(x.split(".")[1])
                     max_block_id = max(max_block_id, block_id)
             self.args.n_layer = max_block_id + 1
 
         if self.args.n_embd < 0:
-            self.args.n_embd = model_weights['head.weight'].shape[1]
+            self.args.n_embd = model_weights["head.weight"].shape[1]
 
         if self.args.vocab_size < 0:
-            self.args.vocab_size = model_weights['head.weight'].shape[0]
-
+            self.args.vocab_size = model_weights["head.weight"].shape[0]
 
         self.args.dim_att = self.args.n_embd
         self.args.n_head = self.args.dim_att // self.args.head_size
         self.args.dim_ffn = int((self.args.n_embd * 3.5) // 32 * 32)
-        if not hasattr(args, 'tiny_att_layer'):
+        if not hasattr(args, "tiny_att_layer"):
             self.args.tiny_att_layer = -1
-        if not hasattr(args, 'tiny_att_dim'):
+        if not hasattr(args, "tiny_att_dim"):
             self.args.tiny_att_dim = -1
 
         self.emb = nn.Embedding(self.args.vocab_size, self.args.n_embd)
 
-        self.blocks = nn.ModuleList([Block(i, args.n_layer, args.n_embd,
-                                           args.n_head, args.head_size,
-                                           args.dropout, args.dim_att, args.dim_ffn)
-                                     for i in range(self.args.n_layer)])
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    i,
+                    args.n_layer,
+                    args.n_embd,
+                    args.n_head,
+                    args.head_size,
+                    args.dropout,
+                    args.dim_att,
+                    args.dim_ffn,
+                )
+                for i in range(self.args.n_layer)
+            ]
+        )
 
         self.ln_out = nn.LayerNorm(self.args.n_embd)
         self.head = nn.Linear(self.args.n_embd, self.args.vocab_size, bias=False)
-        model_weights = {k:v.to(dtype=self.args.dtype) for k,v
-                         in model_weights.items()}
+        model_weights = {
+            k: v.to(dtype=self.args.dtype) for k, v in model_weights.items()
+        }
         # 加载至系统
         self.load_state_dict(model_weights)
         del model_weights
         gc.collect()
         torch.cuda.empty_cache()
 
-
     def get_optimizers(self):
-        lr_init= self.args.lr_init
+        lr_init = self.args.lr_init
         lr_1x = set()
         lr_2x = set()
         lr_3x = set()
@@ -254,60 +275,63 @@ class RWKV(nn.Module):
             optim_groups = [
                 {
                     "fp32_optimizer": True,
-
                     "params": [param_dict[n] for n in lr_1x],
                     "weight_decay": 0.0,
-                    "lr": 1.0 * lr_init
+                    "lr": 1.0 * lr_init,
                 },
                 {
                     "fp32_optimizer": True,
                     "params": [param_dict[n] for n in lr_2x],
                     "weight_decay": 0.0,
-                    "lr": 2.0 * lr_init
+                    "lr": 2.0 * lr_init,
                 },
                 {
                     "fp32_optimizer": True,
                     "params": [param_dict[n] for n in lr_3x],
                     "weight_decay": 0.00,
-                    "lr": 3.0 * lr_init
+                    "lr": 3.0 * lr_init,
                 },
             ]
-            optimizer = DeepSpeedCPUAdam(optim_groups,
-                                         lr=lr_init,
-                                         betas=(self.args.beta1, self.args.beta2),
-                                         eps=self.args.adam_eps,
-                                         bias_correction=True,
-                                         adamw_mode=self.args.adamw_mode,
-                                         weight_decay=self.args.weight_decay,
-                                         amsgrad=False,
-                                         fp32_optimizer_states=True)
+            optimizer = DeepSpeedCPUAdam(
+                optim_groups,
+                lr=lr_init,
+                betas=(self.args.beta1, self.args.beta2),
+                eps=self.args.adam_eps,
+                bias_correction=True,
+                adamw_mode=self.args.adamw_mode,
+                weight_decay=self.args.weight_decay,
+                amsgrad=False,
+                fp32_optimizer_states=True,
+            )
         else:
             optim_groups = [
                 {
                     "params": [param_dict[n] for n in lr_1x],
                     "weight_decay": 0.0,
-                    "lr": 1.0 * lr_init
+                    "lr": 1.0 * lr_init,
                 },
                 {
                     "params": [param_dict[n] for n in lr_2x],
                     "weight_decay": 0.0,
-                    "lr": 2.0 * lr_init
+                    "lr": 2.0 * lr_init,
                 },
                 {
                     "params": [param_dict[n] for n in lr_3x],
                     "weight_decay": 0.00,
-                    "lr": 3.0 * lr_init
+                    "lr": 3.0 * lr_init,
                 },
             ]
 
-            optimizer = DeepSpeedCPUAdam(optim_groups,
-                                         lr=lr_init,
-                                         betas=(self.args.beta1, self.args.beta2),
-                                         eps=self.args.adam_eps,
-                                         adamw_mode=self.args.adamw_mode,
-                                         weight_decay=self.args.weight_decay,
-                                         amsgrad=False,
-                                         bias_correction=True)
+            optimizer = DeepSpeedCPUAdam(
+                optim_groups,
+                lr=lr_init,
+                betas=(self.args.beta1, self.args.beta2),
+                eps=self.args.adam_eps,
+                adamw_mode=self.args.adamw_mode,
+                weight_decay=self.args.weight_decay,
+                amsgrad=False,
+                bias_correction=True,
+            )
         lr_scheduler = None
         if self.args.warmup_steps > 0:
             lr_scheduler = deepspeed.runtime.lr_schedules.WarmupLR(
@@ -315,12 +339,9 @@ class RWKV(nn.Module):
                 warmup_min_lr=0.2 * self.args.lr_init,
                 warmup_max_lr=self.args.lr_init,
                 warmup_num_steps=self.args.warmup_steps,
-                warmup_type='linear')
+                warmup_type="linear",
+            )
         return optimizer, lr_scheduler
-
-
-
-
 
     # def forward(self, idx: torch.Tensor, last_shift_states: torch.Tensor,
     #             last_wkv_states: torch.Tensor):
@@ -339,10 +360,14 @@ class RWKV(nn.Module):
 
         # data into tensor
         idx = torch.tensor([idx], dtype=torch.long).to(next(self.parameters()).device)
-        targets = torch.tensor([targets], dtype=torch.long).to(next(self.parameters()).device)
+        targets = torch.tensor([targets], dtype=torch.long).to(
+            next(self.parameters()).device
+        )
 
         # process mask
-        mask = torch.tensor([mask], dtype=torch.float32).to(next(self.parameters()).device)
+        mask = torch.tensor([mask], dtype=torch.float32).to(
+            next(self.parameters()).device
+        )
         mask = mask.view(-1)
         sum_mask = torch.sum(mask).item()
 
@@ -379,6 +404,8 @@ class RWKV(nn.Module):
             last_state = cur_bs_list[i]
             if self.args.grad_cp:
                 x, new_state = deepspeed_checkpoint(block, x, last_state)
+                # x, new_state = block(x, last_state)
+
             else:
                 x, new_state = block(x, last_state)
             new_states[i] = new_state
@@ -407,7 +434,10 @@ class RWKV(nn.Module):
         idx,
         states: BlockStateList = None,
     ):
-        print(next(self.parameters()).device)
+        """
+        前向传一个序列
+        """
+        # print(next(self.parameters()).device)
 
         idx = torch.tensor([idx], dtype=torch.long).to(next(self.parameters()).device)
 
@@ -437,13 +467,14 @@ class RWKV(nn.Module):
                 x.dtype,
             )
         else:
-            cur_bs_list = BlockStateList(states.shift_states, states.wkv_states)
+            cur_bs_list = copy.deepcopy(states)
 
         for i in range(len(self.blocks)):
             block = self.blocks[i]
             last_state = cur_bs_list[i]
             if self.args.grad_cp:
                 x, new_state = deepspeed_checkpoint(block, x, last_state)
+                # x, new_state = block(x, last_state)
             else:
                 x, new_state = block(x, last_state)
             new_states[i] = new_state
@@ -454,3 +485,125 @@ class RWKV(nn.Module):
 
         return logits, new_states
 
+    def speak(
+        self,
+        start_with_token: int,
+        states,
+        temperature=None,
+        top_p=None,
+        token_stop=[65535],
+        max_tokens=100,
+        m_postfix_token=[],
+        debug_mode=False,
+    ):
+        with torch.no_grad():
+            speak_sequence = []
+            next_token = start_with_token
+            args = self.args
+
+            temperature = (
+                config["inference"]["prompt_config"]["temperature"]
+                if temperature is None
+                else temperature
+            )
+            top_p = (
+                config["inference"]["prompt_config"]["top_p"]
+                if top_p is None
+                else top_p
+            )
+
+            B, T = 1, 1
+            C = args.n_embd
+            H = args.dim_att // args.head_size_a
+            assert C == H * args.head_size_a
+
+            if states is None:
+                new_states = BlockStateList.create(
+                    args.n_layer,
+                    B,
+                    args.n_embd,
+                    args.n_head,
+                    args.head_size,
+                    x.device,
+                    x.dtype,
+                )
+            else:
+                new_states = copy.deepcopy(states)
+
+            for i in range(max_tokens):
+                idx = torch.tensor([[next_token]], dtype=torch.long).to(
+                    next(self.parameters()).device
+                )
+                # print(idx.size())
+                x = self.emb(idx)
+                new_states, logits = self.infer_sequence(x, new_states)
+
+                # logits[0] = -9999999999
+
+                next_token = self.sample_logits(
+                    logits[:, -1, :].squeeze(), temperature, top_p
+                )
+
+                speak_sequence.append(next_token)
+
+                if debug_mode:
+                    xxx = config["inference"]["tokenizer"].decode([next_token])
+                    print(xxx, end="")
+                    sys.stdout.flush()
+
+                if next_token in token_stop:
+                    if m_postfix_token:
+                        postfix = torch.tensor([[m_postfix_token]], dtype=torch.long).to(
+                            next(self.parameters()).device
+                        )
+                        new_states, logits = self.infer_sequence(
+                            self.emb(postfix), new_states
+                        )
+                    speak_sequence.pop()
+                    break
+        return speak_sequence, new_states
+
+    def infer_sequence(self, x, states: BlockStateList):
+        for i in range(len(self.blocks)):
+            block = self.blocks[i]
+            last_state = states[i]
+            x, new_state = block(x, last_state)
+            states[i] = new_state
+
+        x = self.ln_out(x)
+
+        logits = self.head(x)
+        return states, logits
+
+    def sample_logits(self, logits, temperature=1.0, top_p=0.85, top_k=0):
+        with torch.no_grad():
+            probs = F.softmax(logits.float(), dim=-1)
+            top_k = int(top_k)
+            # 'privateuseone' is the type of custom devices like `torch_directml.device()`
+            if probs.device.type in ["cpu", "privateuseone"]:
+                probs = probs.cpu().numpy()
+                sorted_ids = np.argsort(probs)
+                sorted_probs = probs[sorted_ids][::-1]
+                cumulative_probs = np.cumsum(sorted_probs)
+                cutoff = float(sorted_probs[np.argmax(cumulative_probs >= top_p)])
+                probs[probs < cutoff] = 0
+                if top_k < len(probs) and top_k > 0:
+                    probs[sorted_ids[:-top_k]] = 0
+                if temperature != 1.0:
+                    probs = probs ** (1.0 / temperature)
+                probs = probs / np.sum(probs)
+                out = np.random.choice(a=len(probs), p=probs)
+                return int(out)
+            else:
+                sorted_ids = torch.argsort(probs)
+                sorted_probs = probs[sorted_ids]
+                sorted_probs = torch.flip(sorted_probs, dims=(0,))
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
+                cutoff = float(sorted_probs[np.argmax(cumulative_probs >= top_p)])
+                probs[probs < cutoff] = 0
+                if top_k < len(probs) and top_k > 0:
+                    probs[sorted_ids[:-top_k]] = 0
+                if temperature != 1.0:
+                    probs = probs ** (1.0 / temperature)
+                out = torch.multinomial(probs, num_samples=1)[0]
+                return int(out)
