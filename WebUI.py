@@ -9,14 +9,68 @@ import pandas as pd
 import time
 
 # ------------------utils------------------
+def split_data_by_system(messages, chunk_num):
+    '''
+    在大批量细粒度模式下，将messages切分为chunk_num个。
+    如果有system角色，则优先在system之前切分，保证对话的完整性。
+    如果没有system角色，则完全按照chunk_num切分。
+    '''
+    all_chunks = []
+    current_chunk = []
+    current_count = 0
 
-# ------------------utils------------------
+    # 如果没有system角色，则按照chunk_num切分
+    if "system" not in [x["role"] for x in messages[:1000]]: 
+        for message in messages:
 
+            # 如果当前块已足够大，且下一条是 'system'，则截断
+            if current_count >= chunk_num and message['role'] == 'system':
+                all_chunks.append(current_chunk)
+                current_chunk = [message]  # 从新的 'system' 开始新块
+                current_count = 1
+            # 如果当前块不够大
+            else:
+                # 添加消息到当前块
+                current_chunk.append(message)
+                current_count += 1
+
+        # 添加最后一个块（如果有）
+        if current_chunk:
+            all_chunks.append(current_chunk)
+        return all_chunks
+    # 如果有system角色，则按照优先按照system切分，并考虑chunk_num
+    else:
+        for message in messages:
+            # 如果当前块已足够大，且下一条是 'system'，则截断
+            if current_count >= chunk_num and message['role'] == 'system':
+                all_chunks.append(current_chunk)
+                current_chunk = [message]  # 从新的 'system' 开始新块
+                current_count = 1
+            # 如果当前块不够大
+            else:
+                # 添加消息到当前块
+                current_chunk.append(message)
+                current_count += 1
+
+        # 添加最后一个块（如果有）
+        if current_chunk:
+            all_chunks.append(current_chunk)
+
+        return all_chunks
+# ------------------input------------------
+    
 # 角色列表
 role_keys = config["role"].keys()
 # 端口
 port = config['port']
 url = f"http://0.0.0.0:{port}"
+# system prompt
+system_prompt = """你是一个名为RWKV的语言模型，你十分聪明，并乐于给予他人关心、帮助他人解决疑惑。
+<|request|>通常提出要求、命令和问题。\
+<|response|>通常回答问题和解决疑惑。\
+注意：我们所有的对话都应该以<|over|>结尾，这是一个停止符。\
+"""
+# ------------------input------------------
 
 st.set_page_config(page_title="RWKV Chatting", page_icon="🏠")
 st.title('RWKV-Ouroboros')
@@ -36,9 +90,8 @@ with colBB:
     else:
         st.caption(f"当前为：推理模式")
 
-# ================
-# State Process
-# ================
+
+# ============= State Process =============
 with st.sidebar:
     if mode:
         st.title("Training Settings")
@@ -46,19 +99,14 @@ with st.sidebar:
         st.title("Inference Settings")
         
     with st.expander("高级设置(State处理)", expanded=False):
-        # if config["trainer"]["infctx_on"]:
-        #     st.caption("已开启infctx模式")
-        # else:
-        #     st.caption("未开启infctx模式,不能处理train state")
-
-        # 如果是训练模式，就是trainer的state处理，
+        # 训练模式，trainer的state
         if mode:
             reset_route = "/trainer/state/reset"
             save_route = "/trainer/state/save"
             load_route = "/trainer/state/load"
             to_disk_route = "/trainer/state/save-to-disk"
 
-        # 否则是inference的state处理
+        # 推理模式，inference的state
         else:
             reset_route = "/inference/state/reset"
             save_route = "/inference/state/save"
@@ -66,32 +114,31 @@ with st.sidebar:
             to_disk_route = "/inference/state/save-to-disk"
     
         if st.button('重置State',help="清空state，在切换对话主题或训练语料主题时很必要"):
-            r = requests.post(url+reset_route,json={"messages" : ""})
-            if r.status_code == 200:
+            try:
+                r = requests.post(url+reset_route,json={"messages" : ""})
                 r = r.json()
                 if r.get("message"):
                     st.success(f"{r['message']}")
-                else:
-                    st.error("重置train state失败,结果如下：")
-                    st.write(r)
-    
+            except requests.HTTPError:
+                st.error(f"重置state失败,服务器状态码：{r.status_code}")
+
         save_state_name = st.text_input("state暂存名称", placeholder="输入state名称,如n_1", key="save_state_name")
         st.session_state.setdefault("state_names", [])
         if st.button("Save", help="将当前的state暂时保存到内存"):
             if save_state_name and save_state_name not in st.session_state["state_names"]:
-                r = requests.post(url + save_route, json={"save_state": save_state_name})
-                if r.status_code == 200 :
+                try:
+                    r = requests.post(url + save_route, json={"save_state": save_state_name})
                     r = r.json()
                     message = r.get("message")
                     if message == "success":
-                        st.success(f"保存state成功")
                         st.session_state["state_names"].append(save_state_name)
+                        st.success(f"保存state成功")
                     else:
                         st.error(f"保存state失败,请确保state不为初始化状态")
-                else:
+                except requests.HTTPError:
                     st.error(f"服务器返回状态码 {r.status_code}")
             else:
-                st.error("保存train state失败：名称不能为空或已存在")
+                st.error("保存train state失败：名称为空或已存在")
 
         load_state_name = st.selectbox("加载暂存的state", options=st.session_state["state_names"], key="load_state_dir")
         if st.button('Load',help="加载暂存在内存中的state"):
@@ -106,18 +153,11 @@ with st.sidebar:
         save_state_dir = st.text_input("存储state到硬盘", placeholder="请输入state名称", key="save_state_dir")
         if st.button('Save',help="保存state到硬盘，默认保存路径为’./resources/states_for_infer/"):
             r = requests.post(url+to_disk_route,json={"save_state" : f"{save_state_dir}"})
-        # col_a, col_b = st.columns(2)
-        # with col_a:
-                
-        # with col_b:
 
 # ===============训练界面==================
-# ================
-# Train Mode
-# ================
 if mode:
+    # --------------- 0.训练参数 -------------------
     with st.sidebar:
-
         train_mode = st.selectbox(label="选择训练格式", options=["tx-data(推荐)","tokens(测试中)"],key="train_mode")
         if train_mode == "tx-data(推荐)":
             route = "/trainer/by/tx-data"
@@ -152,7 +192,6 @@ if mode:
         # 选择训练数据上传方式
         st.caption("""**Ouroboros训练模式**会自动为每一条数据添加<|over|>作为结束符，因此不需要手动添加。  
                    普通rwkv模型训练约5k条数据即可学会该框架的special token，提高输出稳定性。""")
-
         data_mode = st.radio(label="选择训练粒度",
                              index=0, 
                              key="data_mode",
@@ -171,10 +210,10 @@ if mode:
                 stringio = uploaded_file.getvalue().decode("utf-8")
                 json_data = stringio.split("\n")
                 json_data = [json.loads(x) for x in json_data if x]
-
                 st.success("读取成功")
                 with st.expander("预览数据", expanded=False):
-                    st.write(json_data)
+                    data_row = st.number_input("输入要预览第几行数据",value=1,min_value=1,placeholder="例如：10，则预览前10行数据",key="data_row")
+                    st.write(json_data[data_row-1:data_row])
             else:
                 # 以示例数据json_list为默认值
                 json_data = json_examp
@@ -186,11 +225,11 @@ if mode:
                         "max_loss_fix": max_loss_fix,
                         "ctx_len": ctx_len,
                         "window": window,
-                        "messages":json_data,
-                        }
-        elif data_mode == "大批量细粒度":
-            # file_path = st.text_input("输入jsonl文件路径",value="/home/xu/liubintao/data/openorca_cleaned.jsonl",placeholder="例如：/home/xu/liubintao/RWKV-Ouroboros/resources/dialogues/log1.jsonl")
+                        "messages":json_data,}
 
+        elif data_mode == "大批量细粒度":
+            # 根据本地路径读取数据
+            # file_path = st.text_input("输入jsonl文件路径",value="/home/xu/liubintao/data/openorca_cleaned.jsonl",placeholder="例如：/home/xu/liubintao/RWKV-Ouroboros/resources/dialogues/log1.jsonl")
             # @st.cache_data # 缓存数据，不必每次刷新网页都重新加载
             # def load_json(file_path):
             #     """加载jsonl文件"""
@@ -198,52 +237,7 @@ if mode:
             #             data = f.readlines()
             #     messages = [json.loads(x) for x in data]
             #     return messages
-            def split_data_by_system(messages, chunk_num):
-                '''
-                按主题切分多条jsonl数据，每个块的大小约为chunk_num，分批训练
-                '''
-                all_chunks = []
-                current_chunk = []
-                current_count = 0
 
-                # 如果没有system角色，则按照chunk_num切分
-                if "system" not in [x["role"] for x in messages[:1000]]: 
-                    for message in messages:
-
-                        # 如果当前块已足够大，且下一条是 'system'，则截断
-                        if current_count >= chunk_num and message['role'] == 'system':
-                            all_chunks.append(current_chunk)
-                            current_chunk = [message]  # 从新的 'system' 开始新块
-                            current_count = 1
-                        # 如果当前块不够大
-                        else:
-                            # 添加消息到当前块
-                            current_chunk.append(message)
-                            current_count += 1
-
-                    # 添加最后一个块（如果有）
-                    if current_chunk:
-                        all_chunks.append(current_chunk)
-                    return all_chunks
-                # 如果有system角色，则按照优先按照system切分，并考虑chunk_num
-                else:
-                    for message in messages:
-                        # 如果当前块已足够大，且下一条是 'system'，则截断
-                        if current_count >= chunk_num and message['role'] == 'system':
-                            all_chunks.append(current_chunk)
-                            current_chunk = [message]  # 从新的 'system' 开始新块
-                            current_count = 1
-                        # 如果当前块不够大
-                        else:
-                            # 添加消息到当前块
-                            current_chunk.append(message)
-                            current_count += 1
-
-                    # 添加最后一个块（如果有）
-                    if current_chunk:
-                        all_chunks.append(current_chunk)
-
-                    return all_chunks
             st.caption("文件大小限制为200MB，如果上传文件过大，点击左上角“How to use”")
             uploaded_file =  st.file_uploader(label="上传训练数据", type=["jsonl"], key="tx_data")
             if uploaded_file:
@@ -252,19 +246,14 @@ if mode:
                 json_data = stringio.split("\n")
                 messages = [json.loads(x) for x in json_data if x]
                 st.success("读取成功")
-
                 st.divider()
+
                 "#### 数据切分"
                 st.caption("""1、数据切分优先以system角色前切分，并参考chunk_size的大小，以保证对话的完整性。  
                            2、如果没有system角色，则完全按照chunk_size切分。  
                            3、切分后的数据返回一个list，每个元素为一个chunk，chunk内为多条jsonl数据。""")
                 if messages is not None:
-                    # 读取上传的jsonl文件
-                    # messages = load_json(file_path)
-                    # st.success("读取成功")
-
                     chunk_size = st.number_input("chunk_size: 输入数据分割后每个块的大小",value=30,min_value=1,placeholder="例如：50，则每个chunk包含50条jsonl",help="指每个chunk约包含多少条json数据",key="chunk_size")
-                    # if st.button("切分数据", help="将大量数据切分为多个小块，每个块大小约为chunk_size"):
                     with st.spinner("正在切分数据..."):
                         chunks = split_data_by_system(messages, chunk_size)
                     st.success("数据切分成功")
@@ -274,6 +263,7 @@ if mode:
                         chunk_id = st.number_input("输入要预览的chunk_id",value=None,min_value=1,placeholder="例如：1，则预览第一个chunk",key="chunk_id")
                         if chunk_id is not None:
                             st.write(chunks[chunk_id-1])
+
         elif data_mode == "小批量手写数据":
             # 新建一个空的可编辑的数据表格
             df = pd.DataFrame(columns=["role","text"])
@@ -310,22 +300,20 @@ if mode:
                                             },
                                          )
             st.caption("""说明：  
-1. 务必保证每一行的index为**不同的整数**且**不为空**，否则数据会丢失。  
-2. 可以增删表格row，以控制对话的轮数。  
-3. 可以自选角色（自定义角色需要编辑config.py）  
-4. 表格可全屏显示，方便编辑。
-                       """)
+                        1. 务必保证每一行的index为**不同的整数**且**不为空**，否则数据会丢失。  
+                        2. 可以增删表格row，以控制对话的轮数。  
+                        3. 可以自选角色（自定义角色需要编辑config.py）  
+                        4. 表格可全屏显示，方便编辑。
+                        """)
             # 删除edited_df中的空行，并将每一行转换为json，所有行合并一个list格式,utf-8格式
             json_data = edited_df.dropna(how='all').to_json(orient="records", force_ascii=False)
             json_list = json.loads(json_data)
             with st.expander(label="数据预览及备份",expanded=False):
                 st.write(json_list)
-
                 train_data_dir = st.text_input(label="备份数据的名称：", placeholder ="例如log1(默认保存路径为./resources/train_data/)", key="save_data_dir")
                 if st.button("备份数据", help="将当前编辑的数据保存为jsonl文件"):
-                    # 检查路径是否存在
+                    # 如果路径不存在，则创建新的文件夹
                     if not os.path.exists("./resources/train_data"):
-                        # 如果不存在，则创建新的文件夹
                         os.makedirs("./resources/train_data")
                     # 将st.session_state中的对话记录以jsonl格式保存
                     with open(f"./resources/train_data/{train_data_dir}.jsonl", 'w', encoding='utf-8') as f:
@@ -343,7 +331,7 @@ if mode:
                         "messages":json_list,
                         }
 
-    # --------------- 2.训练效果 -------------------
+    # --------------- 2.训练进程 -------------------
     if data_mode == "小批量粗粒度" or data_mode == "小批量手写数据":
         with st.container(border = True):
             "#### 训练效果"
@@ -384,11 +372,14 @@ if mode:
             if col_A.button(":red[开始训练]"):
                 with st.spinner('Training...'):
                     for i in range(train_times):
+                        # 检查是否停止训练
                         if stop_train_placehold.button("停止训练", key=f"stop_train_{i}"):
                             break
+
                         start_time = time.time()
-                        r = requests.post(url + route, json=tx_data)
-                        if r.status_code == 200:
+                        try:
+                            r = requests.post(url + route, json=tx_data)
+                            r.raise_for_status()
                             loss = r.json().get("loss")
                             st.session_state["losses"].append(loss)
                             # 更新图表数据
@@ -396,16 +387,16 @@ if mode:
                             fig.data[0].y = st.session_state["losses"]
                             # 重新绘制图表
                             chart.plotly_chart(fig, use_container_width=True)
-
-                        else:
-                            st.error(f"第{i+1}次迭代训练失败,结果如下：")
-                            st.write(f"服务器返回状态码：{r.status_code}")
-                            st.write(r.text)
+                        except requests.HTTPError:
+                            st.error(f"第{i+1}次迭代训练失败,服务器返回状态码：{r.status_code}")
                             break
-                        # 更新进度条
+
                         end_time = time.time()
-                        my_bar.progress((i+1)/train_times, text=f"training...{i+1}/{train_times}， loss: {(loss):.4f}, 单轮耗时：{end_time-start_time:.2f}s")
-                st.success(f"训练完成")
+                        # 更新进度条
+                        my_bar.progress((i+1)/train_times)
+                        st.write(f"training...{i+1}/{train_times}， loss: {loss:.4f}, 单轮耗时：{end_time-start_time:.2f}s")
+                    else:
+                        st.success("训练完成")
 
     elif data_mode == "大批量细粒度":
         st.session_state.setdefault("iters", [0])
@@ -450,75 +441,74 @@ if mode:
             if col_C.button("重置进度", help="重置数据批次，从第一个chunk开始训练"):
                 st.session_state["iters"] = [0]
 
-            # 开始训练                
+            # 开始训练/继续训练                
             current_id = st.session_state["iters"][-1]
             if st.session_state["iters"][-1] == 0:
                 train_str = "开始训练"
             else:
                 train_str = "继续训练"
+
             if col_A.button(f":red[{train_str}]", help=f"从第{st.session_state['iters'][-1]+1}个chunk开始训练，每个chunk训练完自动reset state"):
                 with st.spinner('Training...'):
-                    start_num = 0
-                    i = 0
-                    for message in chunks[current_id:current_id + num_chunks]:
+                    for i, message in enumerate(chunks[current_id:current_id + num_chunks], start=1):
                         start_time = time.time()
-                        if stop_train_placehold.button("暂停训练", key=f"stop_train{i}"):
+                        # 暂停训练
+                        if stop_train_placehold.button("暂停训练", key=f"stop_train_{i}"):
                             break
-                        tx_data = { "max_loss": max_loss,
-                                    "min_loss": min_loss,
-                                    "min_loss_fix": min_loss_fix,
-                                    "max_loss_fix": max_loss_fix,
-                                    "ctx_len": ctx_len,
-                                    "window": window,
-                                    "messages":message,
-                                    }
-                        r = requests.post(url + route, json=tx_data)
-                        i += 1
-                        if r.status_code == 200:
+
+                        tx_data = {
+                            "max_loss": max_loss,
+                            "min_loss": min_loss,
+                            "min_loss_fix": min_loss_fix,
+                            "max_loss_fix": max_loss_fix,
+                            "ctx_len": ctx_len,
+                            "window": window,
+                            "messages": message,
+                        }
+
+                        try:
+                            r = requests.post(url + route, json=tx_data)
+                            r.raise_for_status()
                             loss = r.json().get("loss")
                             st.session_state["chunk losses"].append(loss)
-                            # 更新图表数据
-                            fig.data[0].x = list(range(1, len(st.session_state["chunk losses"]) + 1))
-                            fig.data[0].y = st.session_state["chunk losses"]
-                            # 重新绘制图表
-                            chart.plotly_chart(fig, use_container_width=True)
                             st.session_state["iters"].append(current_id + i)
-                            # 清除state
-                            r = requests.post(url+reset_route,json={"messages" : ""})
-                        else:
-                            st.error(f"第{i}次迭代训练失败,结果如下：")
-                            st.write(f"服务器返回状态码：{r.status_code}")
-                            st.write(r.text)
+                        except requests.HTTPError:
+                            st.error(f"第{i}次迭代训练失败,服务器返回状态码：{r.status_code}")
                             break
-                        end_time = time.time()
-                        # 更新进度条
-                        my_bar.progress((i)/num_chunks, text=f"当前批次进展{i}/{num_chunks}，当前批次mean-loss: {(loss):.4f}，单批耗时：{end_time-start_time:.2f}s")
-                st.success(f"训练完成")
 
+                        # 更新图表数据
+                        fig.data[0].x = list(range(1, len(st.session_state["chunk losses"]) + 1))
+                        fig.data[0].y = st.session_state["chunk losses"]
+                        chart.plotly_chart(fig, use_container_width=True)
+
+                        # 清除state
+                        requests.post(url + reset_route, json={"messages": ""})
+
+                        end_time = time.time()
+                        my_bar.progress(i / num_chunks, text=f"当前批次进展{i}/{num_chunks}，当前批次mean-loss: {loss:.4f}，单批耗时：{end_time-start_time:.2f}s")
+                    else:
+                        st.success("训练完成")
 
     # 保存模型
     st.caption("""1.训练完成后，无需保存，可以到推理模式立即测试训练效果。  
                 2.若要加载保存后的model，需要修改config.py中的load_model路径，然后重启后端。  
                 """)
     save_model_dir = st.text_input(label="输入保存模型的名称：", placeholder ="例如default，默认路径为'./resources/weights/", help="默认路径为'./resources/weights/'", key="save_model_dir")
+
     if st.button('保存model'):
         with st.spinner("正在保存model..."):
-            r = requests.post(url+"/trainer/model/save-to-disk",json={"save_name" : f"{save_model_dir}"})
-            if r.status_code == 200:
-                r = r.json()
-                if r.get("message"):
-                    st.success(f"{r['message']}")
-                else:
-                    st.error("保存模型失败,结果如下：")
-                    st.write(r)
-            else:
+            try:
+                r = requests.post(url + "/trainer/model/save-to-disk", json={"save_name": f"{save_model_dir}"})
+                r.raise_for_status()
+                st.success("成功保存模型")
+            except requests.HTTPError:
                 st.error(f"保存模型失败,服务器状态码：{r.status_code}")
+            except requests.RequestException as e:
+                st.error(f"保存模型失败，发生了一个错误：{e}")
 
-# ===============聊天界面==================
-# ================
-# Infer Mode
-# ================
+# ===============推理界面==================
 elif not mode:
+    # ------------------ 0.推理参数 -------------------
     with st.sidebar:
         infer_mode = st.selectbox(label="**选择推理数据格式**：", options=["tx-data(推荐)","tokens(测试中)"],index=0, key="infer_mode")
 
@@ -531,14 +521,6 @@ elif not mode:
 
         with st.container(border = True):
             col1, col2 = st.columns(2)
-            # st.session_state.setdefault("temperature", 0.2)
-            # st.session_state.setdefault("token_count", 512)
-            # st.session_state.setdefault("token_ban", None)
-            # st.session_state.setdefault("token_stop", 65535)
-            # st.session_state.setdefault("top_p", 0.85)
-            # st.session_state.setdefault("alpha_presence", 0.2)
-            # st.session_state.setdefault("alpha_frequency", 0.2)
-            # st.session_state.setdefault("alpha_decay", 0.996)
             
             with col1:
                 st.session_state['temperature'] = st.number_input(label="温度", value=st.session_state.get("temperature",0.2), key="temperature_1", help="temperature：L温度越高，生成的文本越随机；温度越低，生成的文本越固定；为0则始终输出相同的内容。")
@@ -566,10 +548,7 @@ elif not mode:
 
             debug = st.checkbox(label="debug模式", value=False,help="是否在终端打印state变化", key="debug")
         
-
-# ================
-# 对话界面
-# ================
+    # ------------------ 1.初始化 -------------------
     advance_dialog = st.checkbox(label="自定义对话模式", value=False,help="普通对话模式默认对话角色为request/response。自定义对话模式可自定义对话角色。", key="advance_dialog")
 
     # 初始化对话记录
@@ -587,8 +566,8 @@ elif not mode:
                         st.write(content)
             else:
                 st.chat_message(msg["role"]).write(msg["content"])
-            
-    # 高级对话模式
+    # ------------------ 2.自定义/普通对话模式-------------------
+    # 自定义对话模式
     if advance_dialog:
         # 占为符号
         empty_df = pd.DataFrame(columns=["role","text","over","token_count","token_stop"])
@@ -672,8 +651,8 @@ elif not mode:
             st.session_state.messages.append({"role":"human","content":all_messages})
 
             # 模型的反馈结果
-            r = requests.post(url + infer_route, json=data_dialog, stream=True)
-            if r.status_code == 200:
+            try:
+                r = requests.post(url + infer_route, json=data_dialog, stream=True)
                 # for role in answer_roles:
                 answer = ''
                 buffer = b""
@@ -689,19 +668,19 @@ elif not mode:
                             # 如果解码失败，就继续读取更多的数据
                             continue
                 st.session_state.messages.append({"role":"assistant","content":f"**{answer_role.upper()}**: {answer}"})
-            else:
+            except requests.HTTPError:
                 st.error(f"服务器返回状态码 {r.status_code}")
                                   
     # 普通对话模式
     else:
         choose_role = ["request","response"]
         if st.session_state.messages == []:
-            init_prompt = init_prompt_placeholder.text_input("**SYSTEM PROMPT**", value=None, placeholder="默认为：你是一个助人为乐的AI。", key="init_prompt")
+            init_prompt = init_prompt_placeholder.text_input("**SYSTEM PROMPT**", value=None, placeholder=f"默认为：{system_prompt}", key="init_prompt")
+            if init_prompt is None or init_prompt.strip() is None:
+                init_prompt = system_prompt
         if prompt := st.chat_input("Ask something"):
             # 如果是第一次对话，就将init_prompt加入对话记录
             if st.session_state.messages == []:
-                if init_prompt is None or init_prompt.strip() is None:
-                    init_prompt = "你是一个助人为乐的AI。"
                 context_placeholder.chat_message("system").write(f"**SYSTEM**: {init_prompt}")
                 st.session_state.messages.append({"role": "system", "content":f"**SYSTEM**: {init_prompt}"}) 
 
@@ -761,8 +740,8 @@ elif not mode:
                             "debug" : debug,}
 
             # 模型的反馈结果
-            r = requests.post(url + infer_route,json = data_dialog,stream=True)
-            if r.status_code == 200:
+            try:
+                r = requests.post(url + infer_route,json = data_dialog,stream=True)
                 # 流式输出
                 answer = ''
                 buffer = b""
@@ -778,7 +757,7 @@ elif not mode:
                             # 如果解码失败，就继续读取更多的数据
                             continue
                 st.session_state.messages.append({"role": "assistant", "content": answer})
-            else:
+            except requests.HTTPError:
                 st.error(f"服务器返回状态码 {r.status_code}")
             
     # 清空对话/保存对话
