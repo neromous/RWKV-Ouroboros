@@ -16,7 +16,7 @@ import time
 role_keys = config["role"].keys()
 # 端口
 port = config['port']
-url = f"http://0.0.0.0:{port}/"
+url = f"http://0.0.0.0:{port}"
 
 st.set_page_config(page_title="RWKV Chatting", page_icon="🏠")
 st.title('RWKV-Ouroboros')
@@ -130,7 +130,7 @@ if mode:
             with col11:
                 max_loss = st.number_input(label="max_loss", value = config['trainer']["max_loss"], key="max_loss")
                 min_loss = st.number_input(label="min_loss", value= config['trainer']["min_loss"], key="min_loss")
-                ctx_len = st.number_input(label="ctx_len", value=512,help="将输入的训练data切分成的长度", key="ctx_len")
+                ctx_len = st.number_input(label="ctx_len", value=config['model']["ctx_len"],help="将输入的训练data切分成的长度", key="ctx_len")
             with col22:
                 max_loss_fix = st.number_input(label="max_loss_fix", value=config['trainer']["max_loss_fix"], key="max_loss_fix")
                 min_loss_fix = st.number_input(label="min_loss_fix", value=config['trainer']["min_loss_fix"], key="min_loss_fix")
@@ -531,19 +531,38 @@ elif not mode:
 
         with st.container(border = True):
             col1, col2 = st.columns(2)
+            # st.session_state.setdefault("temperature", 0.2)
+            # st.session_state.setdefault("token_count", 512)
+            # st.session_state.setdefault("token_ban", None)
+            # st.session_state.setdefault("token_stop", 65535)
+            # st.session_state.setdefault("top_p", 0.85)
+            # st.session_state.setdefault("alpha_presence", 0.2)
+            # st.session_state.setdefault("alpha_frequency", 0.2)
+            # st.session_state.setdefault("alpha_decay", 0.996)
+            
             with col1:
-                temperature = st.number_input(label="温度", value=0.1, key="temperature", help="temperature：L温度越高，生成的文本越随机；温度越低，生成的文本越固定；为0则始终输出相同的内容。")
-                token_count = st.number_input(label="输出长度", value=512, key="token_count",help="token_count：模型一次性回答的最大token数限制。")
-                token_ban = st.number_input(label="token_ban", value=None, key="token_ban", help="token_ban:整数，使模型避免输出该token_id。一般为空。")
-                token_stop = st.number_input(label="token_stop", value = 65535, key="token_stop", help="停止符:整数，使模型停止输出的token_id。原版rwkv模型为261，Ouroboros框架模型为65535")
-                # 将token_ban和token_stop转换为list
-                token_ban = [int(token_ban)] if token_ban else []
-                token_stop = [int(token_stop)] if token_stop else []
+                st.session_state['temperature'] = st.number_input(label="温度", value=st.session_state.get("temperature",0.2), key="temperature_1", help="temperature：L温度越高，生成的文本越随机；温度越低，生成的文本越固定；为0则始终输出相同的内容。")
+                st.session_state['token_count']  = st.number_input(label="输出长度", value=st.session_state.get("token_count",512), key="token_count_1",help="token_count：模型一次性回答的最大token数限制。")
+                st.session_state['token_ban']  = st.number_input(label="token_ban", value=st.session_state.get("token_ban",None), key="token_ban_1", help="token_ban:整数，使模型避免输出该token_id。一般为空。")
+                st.session_state['token_stop']  = st.number_input(label="token_stop", value = st.session_state.get("token_stop",65535), key="token_stop_1", help="停止符:整数，使模型停止输出的token_id。原版rwkv模型为261，Ouroboros框架模型为65535")
             with col2:
-                top_p = st.number_input(label="top_p", value=0.85, key="top_p", help="top_p越高，生成的文本越多样。")
-                alpha_presence = st.number_input(label="存在惩罚", value=0.2, key="alpha_presence", help="alpha_presence:正值鼓励主题多样，负值鼓励主题一致。")
-                alpha_frequency = st.number_input(label="频率惩罚", value=0.2, key="alpha_frequency", help="alpha_frequency:正值避免重复内容，负值鼓励重复内容。")
-                alpha_decay = st.number_input(label="惩罚衰减", value=0.996, key="alpha_decay", help="alpha_decay:惩罚力度衰减系数。")
+                st.session_state['top_p']  = st.number_input(label="top_p", value=st.session_state.get("top_p",0.85), key="top_p_1", help="top_p越高，生成的文本越多样。")
+                st.session_state['alpha_presence']  = st.number_input(label="存在惩罚", value=st.session_state.get("alpha_presence",0.2), key="alpha_presence_1", help="alpha_presence:正值鼓励主题多样，负值鼓励主题一致。")
+                st.session_state['alpha_frequency']  = st.number_input(label="频率惩罚", value=st.session_state.get("alpha_frequency",0.2), key="alpha_frequency_1", help="alpha_frequency:正值避免重复内容，负值鼓励重复内容。")
+                st.session_state['alpha_decay']  = st.number_input(label="惩罚衰减", value=st.session_state.get("alpha_decay",0.995), key="alpha_decay_1", help="alpha_decay:惩罚力度衰减系数。")
+            
+            temperature = st.session_state['temperature']
+            token_count = st.session_state['token_count']
+            token_ban = st.session_state['token_ban']
+            token_stop = st.session_state['token_stop']
+            top_p = st.session_state['top_p']
+            alpha_presence = st.session_state['alpha_presence']
+            alpha_frequency = st.session_state['alpha_frequency']
+            alpha_decay = st.session_state['alpha_decay']
+
+            # 将token_ban和token_stop转换为list
+            token_ban = [int(token_ban)] if token_ban else []
+            token_stop = [int(token_stop)] if token_stop else []
 
             debug = st.checkbox(label="debug模式", value=False,help="是否在终端打印state变化", key="debug")
         
@@ -622,21 +641,20 @@ elif not mode:
                                 )
         dialog_json_data = data_editor.dropna(how='all').to_json(orient="records", force_ascii=False)
         dialog_json_list = json.loads(dialog_json_data)
-        answer_roles = st.selectbox("选择model回复时所用角色", options=role_keys,index=4, key="answer_role",placeholder="请选择一个角色（多角色回复测试中）")
+        answer_role = st.selectbox("选择model回复时所用角色", options=role_keys,index=4, key="answer_role",placeholder="请选择一个角色（多角色回复测试中）")
         # question/answer user/assistant 是原版rwkv的角色，其停止符强制设置为261，即\n\n
         # token_stop = [261] if "question" or "user" in answer_roles else token_stop
-        for role in answer_roles:
-            dialog_json_list.append({"role":role,
-                                    "text":"",
-                                    "over": False,
-                                    "token_stop": [65535],
-                                    "token_count": token_count,
-                                    "temperature": temperature,
-                                    "top_p":top_p,
-                                    "alpha_frequency":alpha_frequency,
-                                    "alpha_presence":alpha_presence,
-                                    "alpha_decay":alpha_decay,
-                                    })
+        dialog_json_list.append({"role":answer_role,
+                                "text":"",
+                                "over": False,
+                                "token_stop": [65535],
+                                "token_count": token_count,
+                                "temperature": temperature,
+                                "top_p":top_p,
+                                "alpha_frequency":alpha_frequency,
+                                "alpha_presence":alpha_presence,
+                                "alpha_decay":alpha_decay,
+                                })
         data_dialog = {"messages" : dialog_json_list,
                         "debug" : debug,}
         
@@ -656,21 +674,21 @@ elif not mode:
             # 模型的反馈结果
             r = requests.post(url + infer_route, json=data_dialog, stream=True)
             if r.status_code == 200:
-                for role in answer_roles:
-                    answer = ''
-                    buffer = b""
-                    with context_placeholder.empty():
-                        for chunk in r.iter_content(chunk_size=1):
-                            buffer += chunk
-                            try:
-                                part = buffer.decode("utf-8")
-                                buffer = b""
-                                answer += part
-                                st.chat_message("assistant").write(f"**{role.upper()}**: {answer}")
-                            except UnicodeDecodeError:
-                                # 如果解码失败，就继续读取更多的数据
-                                continue
-                    st.session_state.messages.append({"role":"assistant","content":f"**{role.upper()}**: {answer}"})
+                # for role in answer_roles:
+                answer = ''
+                buffer = b""
+                with context_placeholder.empty():
+                    for chunk in r.iter_content(chunk_size=1):
+                        buffer += chunk
+                        try:
+                            part = buffer.decode("utf-8")
+                            buffer = b""
+                            answer += part
+                            st.chat_message("assistant").write(f"**{answer_role.upper()}**: {answer}")
+                        except UnicodeDecodeError:
+                            # 如果解码失败，就继续读取更多的数据
+                            continue
+                st.session_state.messages.append({"role":"assistant","content":f"**{answer_role.upper()}**: {answer}"})
             else:
                 st.error(f"服务器返回状态码 {r.status_code}")
                                   
@@ -682,7 +700,7 @@ elif not mode:
         if prompt := st.chat_input("Ask something"):
             # 如果是第一次对话，就将init_prompt加入对话记录
             if st.session_state.messages == []:
-                if init_prompt is None:
+                if init_prompt is None or init_prompt.strip() is None:
                     init_prompt = "你是一个助人为乐的AI。"
                 context_placeholder.chat_message("system").write(f"**SYSTEM**: {init_prompt}")
                 st.session_state.messages.append({"role": "system", "content":f"**SYSTEM**: {init_prompt}"}) 
