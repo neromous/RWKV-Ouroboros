@@ -47,7 +47,8 @@ class TRIE:
         return ret
 
 class TRIE_TOKENIZER():
-    def __init__(self, file_name):
+    def __init__(self, file_name, sp_map=False):
+        self.sp_map = sp_map
         self.idx2token = {}
         sorted = [] # must be already sorted
         with open(file_name, "r", encoding="utf-8") as f:
@@ -83,7 +84,7 @@ class TRIE_TOKENIZER():
     def decodeBytes(self, tokens):
         return b''.join(map(lambda i: self.idx2token[i], tokens))
 
-    def encode(self, src):
+    def encode_raw(self, src):
         return self.encodeBytes(src.encode("utf-8"))
 
     def decode(self, tokens):
@@ -101,3 +102,20 @@ class TRIE_TOKENIZER():
                 pass
             print(f'{repr(s)}{i}', end=' ')
         print()
+
+    def encode(self, text):
+        if self.sp_map:
+            res = []
+            cache = ""
+            for x in text:
+                cache += x
+                for mk in self.sp_map.keys():
+                    if cache.endswith(mk):
+                        res += self.encode_raw(cache.rstrip(mk))
+                        res += self.sp_map[mk]
+                        cache = ""
+                        break
+            res += self.encode_raw(cache)
+            return res
+        else:
+            return self.encode_raw(text)

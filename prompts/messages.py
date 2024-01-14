@@ -1,4 +1,4 @@
-from config import config, prefix_tokenizer
+from config import config, tokenizer_for_train
 import copy
 import re
 
@@ -20,6 +20,8 @@ class Message:
              ['no_loss', bool, False],
              ['mask', float, 1.0],
              ['role_mask', float, 1.0],
+             ['cfg_pos', str, ""],
+             ['cfg_neg', str, ""],
              ]
         return r
 
@@ -28,7 +30,7 @@ class Message:
         if for_infer:
             func = config['inference']['tokenizer']
         else:
-            func =  config['trainer']['tokenizer']
+            func = config['trainer']['tokenizer']
         return func
 
     @classmethod
@@ -65,19 +67,28 @@ class Message:
         prefix = config['role'][self.role]['prefix']
         postfix = config['role'][self.role]['postfix']
         prefix_mask = [self.role_mask for x in prefix] + [self.role_mask for x in self.prefix_tokens ]
-        postfix_mask =  [self.role_mask for x in self.postfix_tokens ] + [self.role_mask for x in postfix]
+        postfix_mask = [self.role_mask for x in self.postfix_tokens ] + [self.role_mask for x in postfix]
         if self.over:
-            return  prefix_mask  + [self.mask for x in tokens] + postfix_mask
+            return prefix_mask + [self.mask for x in tokens] + postfix_mask
         else:
-            return prefix +  [self.mask for x in tokens]
+            return prefix + [self.mask for x in tokens]
 
 
     def tokens(self, for_infer=True):
-        tokens = prefix_tokenizer(self.prefix + self.text + self.postfix,self.tokenizer(for_infer=for_infer))
-        # tokens = self.tokenizer(for_infer=True).encode(
-        #     self.prefix + self.text + self.postfix)
+        tokens = self.tokenizer(for_infer=for_infer).encode(self.prefix + self.text + self.postfix)
         masks = self.cover_with_role_mask(tokens)
         tokens = self.cover_with_role(tokens)
         if self.no_loss:
             masks = [0 for x in tokens]
         return tokens, masks
+
+    def cfg_tokens(self):
+        if self.cfg_pos != "":
+            pos = self.tokenizer().encode(self.cfg_pos)
+        else:
+            pos = []
+        if self.cfg_neg != "":
+            neg = self.tokenizer().encode(self.cfg_neg)
+        else:
+            neg = []
+        return pos, neg

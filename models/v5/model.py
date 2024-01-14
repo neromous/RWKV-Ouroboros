@@ -328,6 +328,7 @@ class RWKV(nn.Module):
     def forward(self, batch:dict, states:BlockStateList=None):
         args = self.args
         # pre calc
+        #
         seq = batch['input_ids']
         mask = batch.get('attention_mask',None)
 
@@ -336,7 +337,8 @@ class RWKV(nn.Module):
         targets = seq[1:]
         if mask == None:
             mask = [int(x!=0) for x in idx]
-
+        else:
+            mask = mask[:len(idx)]
         # data into tensor
         idx = torch.tensor([idx],dtype=torch.long).cuda()
         targets = torch.tensor([targets],dtype=torch.long).cuda()
@@ -358,7 +360,7 @@ class RWKV(nn.Module):
         H =  args.dim_att // args.head_size_a
 
         assert T <= self.args.ctx_len, "Cannot forward, model ctx_len is exhausted."
-        assert C== H * args.head_size_a
+        assert C == H * args.head_size_a
 
         x = self.emb(idx)
         new_states = BlockStateList.empty(args.n_layer,

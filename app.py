@@ -34,24 +34,18 @@ infer_state = None
 infer_init_state = None
 infer_state_map = {}
 debug = config['debug']
+pos_state = None
+neg_state = None
 # ================
 # load model
 # ================
 
-if args.rwkv_version == "v4":
-    if args.infctx_on:
-        from models.v4.infctx import RWKV
-    else:
-        from models.v4.origin import RWKV
-    train_model = RWKV(args)
-    from models.v4.runner import RWKV_RNN
-elif args.rwkv_version == "v5":
-    if args.infctx_on:
-        from models.v5.model import RWKV
-    else:
-        from models.v5.origin import RWKV
-    train_model = RWKV(args)
-    from models.v5.runner import RWKV_RNN
+if args.infctx_on:
+    from models.v5.model import RWKV
+else:
+    from models.v5.origin import RWKV
+train_model = RWKV(args)
+from models.v5.runner import RWKV_RNN
 
 
 optimizer, lr_scheduler = train_model.get_optimizers()
@@ -129,8 +123,6 @@ def train_model_to_disk():
 # ================
 # train model
 # ================
-
-
 @route('/trainer/by/tx-data', method='POST')
 def train_by_tx_data():
     global train_state,training_step, debug
@@ -149,18 +141,21 @@ def train_by_tx_data():
     messages = [Message.new(x) for x in messages]
     messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
+    if len(tokens) == 0:
+        return {"loss": 0.0}
     masks = []
     for token, mask in messages:
         tokens += token
         masks += mask
+
+    tokens = tokens + [0]
+    masks[-1] = 0
     # 此处的tokens是一个list，masks是一个list，里面是1或0
     if len(tokens) == 0:
         return {"response": "no tokens"}
-    losses = []
     total = 0
     mean_loss = 0
     i = 0
-    n = 0
     if train_state is not None:
         states = copy.deepcopy(train_state)
     else:
@@ -171,15 +166,16 @@ def train_by_tx_data():
         print("-tokens->", tokens)
     # 每次循环截取tokens的0-ctx_len部分,window为滑动窗口的重叠长度
     # 每个被截取的部分都是一个batch、单独进行前向传播和反向传播
-    while len(tokens) > 0:
+    while len(tokens) > 1:
         # training_step += 1
         i += 1
-        output = tokens[:ctx_len]
-        output_masks = masks[:ctx_len]
+        output = tokens[:ctx_len + 1]
+        output_masks = masks[:len(output) - 1]
+        # add the token to keep the state have  last one token
         tokens = tokens[ctx_len - window:]
         masks = masks[ctx_len - window:]
         batch = {'input_ids': output,
-                 'masks': output_masks}
+                 'attention_mask': output_masks}
         # deepspeed的model_engine是一个函数，输入batch和states，前向传播，返回loss和states
         m, states = model_engine(batch, states=states)
         loss = m.item()
@@ -201,14 +197,12 @@ def train_by_tx_data():
         print("-train-state-after>", states)
     gc.collect()
     torch.cuda.empty_cache()
-
     return {"loss": mean_loss}
-
 
 
 @route('/trainer/by/tokens', method='POST')
 def train_by_tokens():
-    global train_state,debug
+    global train_state, debug, step
     req = dict(request.json)
     min_loss = req.get('max_loss', args.min_loss)
     max_loss = req.get('min_loss', args.max_loss)
@@ -216,6 +210,8 @@ def train_by_tokens():
     max_loss_fix = req.get('max_loss_fix', args.max_loss_fix)
     ctx_len = req.get('ctx_len', args.ctx_len)
     window = req.get('window', args.window)
+    fix_logit = req.get('fix_logit', 1)
+    attention_mask = req.get('attention_mask', None)
     all_tokens = req.get('tokens', [])
     if len(all_tokens) == 0:
         return {"response": "no tokens"}
@@ -223,7 +219,7 @@ def train_by_tokens():
     total = 0
     mean_loss = 0
     i = 0
-    n = 0
+    step = 0
     if train_state is not None:
         states = copy.deepcopy(train_state)
     else:
@@ -231,25 +227,39 @@ def train_by_tokens():
     if debug:
         print("-train-state-before>", states)
     for tokens in all_tokens:
-        while len(tokens) > 0:
+        # 增加一个[0] 以对齐最后一个token,避免丢失
+        if attention_mask is None:
+            masks = [fix_logit for x in tokens]
+        else:
+            masks = [x * fix_logit for x in attention_mask]
+        tokens = tokens + [0]
+        masks[-1] = 0
+        while len(tokens) > 1:
             i += 1
-            output = tokens[:ctx_len]
+            step += 1
+            # 修正最后一个token不进入state的问题。
+            output = tokens[:ctx_len + 1]
             tokens = tokens[ctx_len - window:]
-            # output_masks = [1 for x in output]
+            output_masks = masks[:len(output) -1]
+            masks = masks[ctx_len - window:]
+            # 组装结果
             batch = {'input_ids': output,
-                     'masks': None}
+                     'attention_mask': output_masks}
             m, states = model_engine(batch, states=states)
             loss = m.item()
             if loss < min_loss:
                 m = m * min_loss_fix
             elif loss > max_loss:
                 m = m * max_loss_fix
+
             model_engine.backward(m)
             model_engine.step()
 
             total += loss
             mean_loss = total / i
-            print(f"\nmean-loss->{mean_loss}")
+            print(f"\nfix-logit->{fix_logit}, total-loss->{total}")
+            print(f"round->{step}, mean-loss->{mean_loss}")
+            print(f"current->{loss}")
         losses.append(mean_loss)
     if states is not None:
         train_state = copy.deepcopy(states)
@@ -261,6 +271,7 @@ def train_by_tokens():
     torch.cuda.empty_cache()
     return {"losses": losses}
 
+
 # ================
 # infer-state
 # ================
@@ -268,9 +279,11 @@ def train_by_tokens():
 
 @route('/inference/state/reset', method='POST')
 def clean_infer_state():
-    global infer_state
+    global infer_state , pos_state, neg_state
     req = dict(request.json)
     infer_state = None
+    pos_state = None
+    neg_state = None
     return {"message": "success"}
 
 
@@ -292,7 +305,6 @@ def load_infer_state():
     global infer_state, infer_state_map
     req = request.json
     req = dict(request.json)
-    #***
     s_name = req.get('load_state', False)
     if s_name:
         infer_state = infer_state_map.get(s_name, None)
@@ -300,8 +312,6 @@ def load_infer_state():
         return {"message": "success"}
     else:
         return {"message": "fail"}
-
-
 
 @route('/inference/state/save-to-disk', method='POST')
 def infer_state_to_disk():
@@ -328,8 +338,9 @@ def infer_model_load():
 # ================
 @route('/inference/tx-data', method='POST')
 def infer_by_tx_data():
-    global rnn_model, infer_state, debug
+    global rnn_model, infer_state, debug, pos_state, neg_state
     req = request.json
+    debug = req.get('debug', debug)
     if rnn_model is None:
         print(f"===load model===")
         infer_model_load()
@@ -338,25 +349,32 @@ def infer_by_tx_data():
     state = None
     if infer_state is not None:
         state = copy.deepcopy(infer_state)
-    debug = req.get('debug',debug)
+    if pos_state is not None:
+        pos_state = copy.deepcopy(pos_state)
+    if neg_state is not None:
+        neg_state = copy.deepcopy(neg_state)
     if debug:
         print("--before--->", state)
     for message in messages:
-        infer_config = {"temperature": message.get("temperature", 0.1),
-                        "top_p": message.get('top_p', 0.85),
+        infer_config = {"temperature": message.get("temperature", 0.2),
+                        "top_p": message.get('top_p', 0.2),
                         "token_count": message.get('token_count', 256),
                         "token_stop": message.get('token_stop', []),
-                        "alpha_presence": message.get('alpha_presence', 0.2),
+                        "alpha_presence": message.get('alpha_presence', 0.45),
                         "alpha_decay": message.get('alpha_decay', 0.996),
-                        "alpha_frequency": message.get('alpha_frequency', 0.2),
-                        "token_ban": message.get('token_ban', [])
-                        }
-        msg, state = rnn_model.generate(tokenizer,
-                                        Message.new(message),
-                                        infer_config,
-                                        state=state)
+                        "alpha_frequency": message.get('alpha_frequency', 0.45),
+                        "token_ban": message.get('token_ban', [])}
+        msg, state, pos_state, neg_state = rnn_model.generate(Message.new(message),
+                                                              infer_config,
+                                                              state=state,
+                                                              pos_state=pos_state,
+                                                              neg_state=neg_state)
         result.append(msg.json())
     infer_state = copy.deepcopy(state)
+    if pos_state is not None:
+        pos_state = copy.deepcopy(pos_state)
+    if neg_state is not None:
+        neg_state = copy.deepcopy(neg_state)
     if debug:
         print("--after--->", state)
     return {'messages': result}
@@ -374,19 +392,19 @@ def infer_by_tx_data():
     if infer_state is not None:
         state = copy.deepcopy(infer_state)
     debug = req.get('debug',debug)
-    
+
     def generate_messages(state=state):
         global infer_state
         if debug:
             print("--before--->", state)
         for message in messages:
-            infer_config = {"temperature": message.get("temperature", 0.1),
-                            "top_p": message.get('top_p', 0.85),
+            infer_config = {"temperature": message.get("temperature", 0.2),
+                            "top_p": message.get('top_p', 0.2),
                             "token_count": message.get('token_count', 256),
                             "token_stop": message.get('token_stop', []),
-                            "alpha_presence": message.get('alpha_presence', 0.2),
+                            "alpha_presence": message.get('alpha_presence', 0.45),
                             "alpha_decay": message.get('alpha_decay', 0.996),
-                            "alpha_frequency": message.get('alpha_frequency', 0.2),
+                            "alpha_frequency": message.get('alpha_frequency', 0.45),
                             "token_ban": message.get('token_ban', [])
                             }
             generator = rnn_model.flow_generate(tokenizer,
@@ -410,41 +428,53 @@ def infer_by_tx_data():
     return generate_messages()  # 返回生成器函数
 
 
-
 @route('/inference/by/messages', method='POST')
 def infer_by_messages():
-    global rnn_model, infer_state
-    req = dict(request.json)
+    global rnn_model, infer_state, debug, pos_state, neg_state
+    req = request.json
+    debug = req.get('debug',debug)
     if rnn_model is None:
-        print("===load model===")
+        print(f"===load model===")
         infer_model_load()
     messages = req['messages']
     result = []
     state = None
     if infer_state is not None:
         state = copy.deepcopy(infer_state)
+    if pos_state is not None:
+        pos_state = copy.deepcopy(pos_state)
+    if neg_state is not None:
+        neg_state = copy.deepcopy(neg_state)
+    if debug:
+        print("--before--->", state)
     for message in messages:
-        infer_config = {"temperature": message.get("temperature", 0.1),
-                        "top_p": message.get('top_p', 0.85),
+        infer_config = {"temperature": message.get("temperature", 0.2),
+                        "top_p": message.get('top_p', 0.2),
                         "token_count": message.get('token_count', 256),
                         "token_stop": message.get('token_stop', []),
-                        "alpha_presence": message.get('alpha_presence', 0.2),
+                        "alpha_presence": message.get('alpha_presence', 0.45),
                         "alpha_decay": message.get('alpha_decay', 0.996),
-                        "alpha_frequency": message.get('alpha_frequency', 0.2),
-                        "token_ban": message.get('token_ban', [])
-                        }
-        msg, state = rnn_model.generate(tokenizer,
-                                        Message.new(message),
-                                        infer_config,
-                                        state=state)
+                        "alpha_frequency": message.get('alpha_frequency', 0.45),
+                        "token_ban": message.get('token_ban', [])}
+        msg, state, pos_state, neg_state = rnn_model.generate(Message.new(message),
+                                                              infer_config,
+                                                              state=state,
+                                                              pos_state=pos_state,
+                                                              neg_state=neg_state)
         result.append(msg.json())
     infer_state = copy.deepcopy(state)
+    if pos_state is not None:
+        pos_state = copy.deepcopy(pos_state)
+    if neg_state is not None:
+        neg_state = copy.deepcopy(neg_state)
+    if debug:
+        print("--after--->", state)
     return {'messages': result}
 
 
 @route('/inference/by/tokens', method='POST')
 def infer_by_tokens():
-    global rnn_model, infer_state, debug
+    global rnn_model, infer_state, debug, pos_state, neg_state
     req = dict(request.json)
     if rnn_model is None:
         print(f"===load model===")
@@ -464,8 +494,7 @@ def infer_by_tokens():
                     "alpha_frequency": req.get('alpha_frequency', 0.2),
                     "token_ban": req.get('token_ban', [])
                     }
-    msg, state = rnn_model.generate(tokenizer,
-                                    Message.new({}),
+    msg, state, pos_state, neg_state = rnn_model.generate(Message.new({}),
                                     infer_config,
                                     state=state)
     result.append(msg.json())
@@ -478,4 +507,4 @@ def infer_by_tokens():
 # ================
 
 if True:
-    run(host='0.0.0.0', port=3000)
+    run(host='0.0.0.0', port=config['port'])
