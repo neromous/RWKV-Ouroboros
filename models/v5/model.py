@@ -397,7 +397,7 @@ class RWKV(nn.Module):
         logits = self.head(x)
 
         #logits 计算完毕
-        # states = BlockStateList(new_shift_states, new_wkv_states)
+        #new_states = BlockStateList(new_states.shift_states, new_states.wkv_states)
 
         if sum_mask == mask.shape[0]:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))

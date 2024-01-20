@@ -1,10 +1,14 @@
 from config import config, tokenizer_for_train
 import copy
 import re
+from zhconv import convert
 
 
 class PromptConfig:
     pass
+
+def to_cn(text):
+    return convert(text, 'zh-cn')
 
 class Message:
     @classmethod
@@ -14,7 +18,8 @@ class Message:
              ['prefix_tokens', list, []],
              ['postfix_tokens', list, []],
              ['role', str, 'text'],
-             ['text', str, ''],
+             ['text', to_cn, ''],
+             ['content', to_cn, ''],
              ['response', str, ''],
              ['over', bool, True],
              ['no_loss', bool, False],
@@ -39,6 +44,8 @@ class Message:
         for k, f, dv in cls.valid_fields():
             v = args.get(k, dv)
             setattr(m, k, f(v))
+        if len(m.content) != 0:
+            m.text = m.content
         return m
 
     def json(self):

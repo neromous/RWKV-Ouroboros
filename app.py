@@ -41,7 +41,7 @@ neg_state = None
 # ================
 
 if args.infctx_on:
-    from models.v5.model import RWKV
+    from models.v5.model import RWKV, BlockStateList
 else:
     from models.v5.origin import RWKV
 train_model = RWKV(args)
@@ -263,6 +263,8 @@ def train_by_tokens():
         losses.append(mean_loss)
     if states is not None:
         train_state = copy.deepcopy(states)
+        # BlockStateList(states.shift_states, states.wkv_states)
+        # copy.deepcopy(states)
     else:
         train_state = states
     if debug:
