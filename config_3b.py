@@ -7,7 +7,7 @@ tokenizer = TRIE_TOKENIZER("./resources/vocab_file/rwkv_vocab_v20230424.txt")
 config = {
     "model_name": "default",
     "proj_dir": "/home/neromous/RWKV-Ouroboros",
-    "port": 3000,
+    "port": 30001,
     "debug": False,
     "model": {
         "load_model": "/home/neromous/RWKV-Ouroboros/resources/weights/default.pth",
@@ -15,7 +15,7 @@ config = {
         "n_embd":  2560,
         "n_layer": 32,
         "vocab_size": 65536,
-        "ctx_len": 16384,
+        "ctx_len": 10240,
         "dtype": "bf16",
         "head_size": 64,
         "head_size_a": 64,
@@ -125,21 +125,20 @@ config = {
             "postfix": []
         },
         "question": {
-            "prefix": [65532],
-            "postfix": [65533]
+            "prefix": tokenizer.encode('Question: '),
+            "postfix": [261]
         },
         "answer": {
-            "prefix": [65534],
-            "postfix": [65535]
+            "prefix": tokenizer.encode('Answer: '),
+            "postfix": [261]
         },
         "user": {
-            "prefix": [65532],
-            "postfix": [65533]
+            "prefix": tokenizer.encode('User: '),
+            "postfix": [261]
         },
         "assistant": {
-            "prefix": [65534],
-            "postfix": [65535]
-        },
+            "prefix": tokenizer.encode('Assistant: '),
+            "postfix": [261]},
         "instruction": {
             "prefix": tokenizer.encode('## Instruction:\n'),
             "postfix": [261]
