@@ -112,7 +112,7 @@ class TRIE_TOKENIZER():
                 if cache.endswith(">"):
                     for mk in self.sp_map.keys():
                         if cache.endswith(mk):
-                            res += self.encode_raw(cache.rstrip(mk))
+                            res += self.encode_raw(cache[:-len(mk)])
                             res += self.sp_map[mk]
                             cache = ""
                             break

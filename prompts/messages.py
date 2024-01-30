@@ -27,7 +27,8 @@ class Message:
              ['role_mask', float, 1.0],
              ['cfg_pos', str, ""],
              ['cfg_neg', str, ""],
-             ]
+             ['doing_pos',bool,False],
+             ['doing_neg',bool,False]]
         return r
 
     @classmethod

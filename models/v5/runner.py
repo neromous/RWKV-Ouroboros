@@ -293,6 +293,8 @@ class RWKV_RNN(MyModule):
             print("===3==", message.tokenizer().decode(tokens))
 
         pos, neg = message.cfg_tokens()
+        doing_pos = message.doing_pos
+        doing_neg = message.doing_neg
 
         # add pos or neg tag
         if len(pos) > 0:
@@ -317,7 +319,8 @@ class RWKV_RNN(MyModule):
         occurrence = {}
         all_tokens = []
         out_last = 0
-        for i in range(0,token_count):
+        token = 261
+        for i in range(0, token_count + 1):
             if i == 0:
                 while len(tokens) > 0:
                     do_infer = tokens[:512]
@@ -328,16 +331,16 @@ class RWKV_RNN(MyModule):
                         do_infer = pos[:512]
                         pos = pos[512:]
                         pos_logits, pos_state = self.forward(do_infer, pos_state)
-                if neg_tag :
+                if neg_tag:
                     while len(neg) > 0:
                         do_infer = neg[:512]
                         neg = neg[512:]
                         neg_logits, neg_state = self.forward(do_infer, neg_state)
             else:
                 logits, state = self.forward([token], state)
-                if pos_tag:
+                if pos_tag and doing_pos:
                     pos_logits, pos_state = self.forward([token], pos_state)
-                if neg_tag:
+                if neg_tag and doing_neg:
                     neg_logits, neg_state = self.forward([token], neg_state)
 
             if pos_tag:
