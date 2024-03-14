@@ -80,10 +80,9 @@ st.caption("""
          """)
 
 colaa, colbb, colcc = st.columns([2,1,2])
+colAA, colBB, colCC = st.columns([1,1,1])
 with colbb:
     mode = st.toggle('切换模式', value=True,label_visibility="collapsed",help="切换训练/推理模式")
-
-colAA, colBB, colCC = st.columns([1,1,1])
 with colBB:
     if mode:
         st.caption("当前为：训练模式")
@@ -431,7 +430,7 @@ if mode:
                     st.rerun()
 
             # 训练次数
-            num_chunks = st.number_input(label="训练chunk数: ", value=20, placeholder="请输入训练次数",key="num_chunks",help="一次性自动训练的chunk数量")
+            num_chunks = st.number_input(label="训练chunk数: ", value=20, placeholder="请输入训练批数",key="num_chunks",help="一次性自动训练的chunk数量")
 
             col_A,col_B ,col_C, col_D = st.columns([1,1,1,3])
             # 重置进度/暂停训练
