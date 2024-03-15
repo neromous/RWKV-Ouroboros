@@ -141,12 +141,12 @@ def train_by_tx_data():
     messages = [Message.new(x) for x in messages]
     messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
-    if len(tokens) == 0:
-        return {"loss": 0.0}
     masks = []
     for token, mask in messages:
         tokens += token
         masks += mask
+    if len(tokens) == 0:
+        return {"loss": 0.0}
 
     tokens = tokens + [0]
     masks[-1] = 0
