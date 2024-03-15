@@ -23,8 +23,8 @@ def split_data_by_system(messages, chunk_num):
     if "system" not in [x["role"] for x in messages[:1000]]: 
         for message in messages:
 
-            # 如果当前块已足够大，且下一条是 'system'，则截断
-            if current_count >= chunk_num and message['role'] == 'system':
+            # 如果当前块已足够大，则截断
+            if current_count >= chunk_num :
                 all_chunks.append(current_chunk)
                 current_chunk = [message]  # 从新的 'system' 开始新块
                 current_count = 1
