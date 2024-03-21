@@ -141,15 +141,16 @@ def train_by_tx_data():
     messages = [Message.new(x) for x in messages]
     messages = [x.tokens(for_infer=False) for x in messages]
     tokens = []
-    if len(tokens) == 0:
-        return {"loss": 0.0}
     masks = []
     for token, mask in messages:
         tokens += token
         masks += mask
 
-    tokens = tokens + [0]
-    masks[-1] = 0
+    if len(tokens) == 0:
+        return {"loss": 0.0}
+
+    #tokens = tokens + [0]
+    #masks[-1] = 0
     # 此处的tokens是一个list，masks是一个list，里面是1或0
     if len(tokens) == 0:
         return {"response": "no tokens"}
@@ -169,8 +170,8 @@ def train_by_tx_data():
     while len(tokens) > 1:
         # training_step += 1
         i += 1
-        output = tokens[:ctx_len + 1]
-        output_masks = masks[:len(output) - 1]
+        output = tokens[:ctx_len ]
+        output_masks = masks[:len(output) ]
         # add the token to keep the state have  last one token
         tokens = tokens[ctx_len - window:]
         masks = masks[ctx_len - window:]
@@ -204,6 +205,7 @@ def train_by_tx_data():
 def train_by_tokens():
     global train_state, debug, step
     req = dict(request.json)
+    reset_by_step = req.get('reset_by_step', False)
     min_loss = req.get('max_loss', args.min_loss)
     max_loss = req.get('min_loss', args.max_loss)
     min_loss_fix = req.get('min_loss_fix', args.min_loss_fix)
@@ -232,19 +234,22 @@ def train_by_tokens():
             masks = [fix_logit for x in tokens]
         else:
             masks = [x * fix_logit for x in attention_mask]
-        tokens = tokens + [0]
-        masks[-1] = 0
+        tokens = tokens
+        #masks[-1] = 0
         while len(tokens) > 1:
             i += 1
             step += 1
             # 修正最后一个token不进入state的问题。
-            output = tokens[:ctx_len + 1]
+            output = tokens[:ctx_len]
             tokens = tokens[ctx_len - window:]
-            output_masks = masks[:len(output) -1]
+            output_masks = masks[:len(output)]
             masks = masks[ctx_len - window:]
             # 组装结果
             batch = {'input_ids': output,
                      'attention_mask': output_masks}
+            if reset_by_step:
+                states = None
+                print("-> reset")
             m, states = model_engine(batch, states=states)
             loss = m.item()
             if loss < min_loss:
@@ -260,11 +265,9 @@ def train_by_tokens():
             print(f"\nfix-logit->{fix_logit}, total-loss->{total}")
             print(f"round->{step}, mean-loss->{mean_loss}")
             print(f"current->{loss}")
-        losses.append(mean_loss)
+        losses.append(loss)
     if states is not None:
         train_state = copy.deepcopy(states)
-        # BlockStateList(states.shift_states, states.wkv_states)
-        # copy.deepcopy(states)
     else:
         train_state = states
     if debug:
@@ -347,6 +350,8 @@ def infer_by_tx_data():
         print(f"===load model===")
         infer_model_load()
     messages = req['messages']
+    pos_gama = req.get('pos_gama',0.4)
+    neg_gama = req.get('neg_gama',0.4)
     result = []
     state = None
     if infer_state is not None:
@@ -369,6 +374,8 @@ def infer_by_tx_data():
         msg, state, pos_state, neg_state = rnn_model.generate(Message.new(message),
                                                               infer_config,
                                                               state=state,
+                                                              pos_gama=pos_gama,
+                                                              neg_gama=neg_gama,
                                                               pos_state=pos_state,
                                                               neg_state=neg_state)
         result.append(msg.json())

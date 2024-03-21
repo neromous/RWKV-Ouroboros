@@ -356,8 +356,6 @@ class RWKV_RNN(MyModule):
             token = sample_logits(logits,
                                   temperature=temperature,
                                   top_p=top_p)
-            if token in token_stop:
-                break
             all_tokens += [token]
             for xxx in occurrence:
                 occurrence[xxx] *= alpha_decay
@@ -370,6 +368,8 @@ class RWKV_RNN(MyModule):
                 print(text, end="", flush=True)
                 out_str += text
                 out_last = i + 1
+            if token in token_stop:
+                break
 
         message.generated = True
         message.response = out_str

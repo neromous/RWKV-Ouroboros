@@ -54,7 +54,7 @@ class Message:
 
     def __str__(self):
         text = self.prefix + self.text + self.postfix
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        # text = re.sub(r'\n{3,}', '\n\n', text)
         text = text.strip()
         return text
 
