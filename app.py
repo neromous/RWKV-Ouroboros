@@ -242,7 +242,7 @@ def train_by_tokens():
             # 修正最后一个token不进入state的问题。
             output = tokens[:ctx_len]
             tokens = tokens[ctx_len - window:]
-            output_masks = masks[:len(output)]
+            output_masks = masks[:len(output)-1]
             masks = masks[ctx_len - window:]
             # 组装结果
             batch = {'input_ids': output,

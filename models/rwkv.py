@@ -264,7 +264,13 @@ class L2Wrap(torch.autograd.Function):
         factor = 1e-4 / (y.shape[0] * y.shape[1])
         maxx, ids = torch.max(y, -1, keepdim=True)
         gy = torch.zeros_like(y)
-        gy.scatter_(-1, ids, maxx * factor)
+        if True:
+            maxx[maxx<3.]=0.
+            gy.scatter_(-1, ids, maxx * factor * grad_output)
+        else:
+            gy.scatter_(-1, ids, maxx * factor)
+
+        # gy.scatter_(-1, ids, maxx * factor)
         return (grad_output, gy)
 
 

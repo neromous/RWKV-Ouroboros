@@ -59,6 +59,9 @@ class Message:
         return text
 
     def cover_with_role(self, tokens):
+        """
+        把tokens用role的prefix和postfix包裹起来
+        """
         prefix = config['role'][self.role]['prefix']
         postfix = config['role'][self.role]['postfix']
         prefix = prefix + self.prefix_tokens
