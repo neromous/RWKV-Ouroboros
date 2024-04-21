@@ -188,11 +188,9 @@ class TimeMix(nn.Module):
         # w = w.to(dtype=self.args.dtype)
         # u = u.to(dtype=self.args.dtype)
         #state = state.to(dtype=self.args.dtype)
-
         out = out.to(dtype=self.args.dtype)
         out = out.transpose(1,2).reshape(B*T, H*V)
         out = self.ln_x(out / self.args.head_size_divisor).view(B, T, H*V)
-
         out = self.output(out * g)
         return out, state
 

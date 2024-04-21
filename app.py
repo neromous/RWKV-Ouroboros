@@ -57,7 +57,6 @@ model_engine, optimizer, _, _ = deepspeed.initialize(model=train_model,
 # ================
 # train-state
 # ================
-
 if args.infctx_on:
     @route('/trainer/state/reset', method='POST')
     def clean_train_state():
@@ -199,6 +198,7 @@ def train_by_tx_data():
     gc.collect()
     torch.cuda.empty_cache()
     return {"loss": mean_loss}
+
 
 
 @route('/trainer/by/tokens', method='POST')
