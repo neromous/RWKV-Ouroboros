@@ -144,6 +144,8 @@ def train_by_tx_data():
     for token, mask in messages:
         tokens += token
         masks += mask
+    if len(tokens) == 0:
+        return {"loss": 0.0}
 
     if len(tokens) == 0:
         return {"loss": 0.0}
